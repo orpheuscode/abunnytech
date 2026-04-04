@@ -1,0 +1,77 @@
+{
+  "additionalProperties": false,
+  "description": "Stage 1 output: creative brief and structure before generation.",
+  "properties": {
+    "blueprint_id": {
+      "description": "Unique blueprint identifier.",
+      "title": "Blueprint Id",
+      "type": "string"
+    },
+    "matrix_id": {
+      "description": "Identity matrix this blueprint belongs to.",
+      "title": "Matrix Id",
+      "type": "string"
+    },
+    "title": {
+      "description": "Working title for the short.",
+      "title": "Title",
+      "type": "string"
+    },
+    "hook": {
+      "description": "Opening hook or first-line concept.",
+      "title": "Hook",
+      "type": "string"
+    },
+    "outline": {
+      "description": "Ordered beat list or scene prompts.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Outline",
+      "type": "array"
+    },
+    "suggested_caption": {
+      "default": "",
+      "description": "Draft caption before final packaging.",
+      "title": "Suggested Caption",
+      "type": "string"
+    },
+    "hashtags": {
+      "description": "Suggested hashtags (without leading # optional per platform).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Hashtags",
+      "type": "array"
+    },
+    "audio_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "TrendingAudioItem.audio_id when a specific track is selected.",
+      "title": "Audio Id"
+    },
+    "duration_seconds_target": {
+      "default": 15,
+      "description": "Target video length in seconds.",
+      "maximum": 600,
+      "minimum": 1,
+      "title": "Duration Seconds Target",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "blueprint_id",
+    "matrix_id",
+    "title",
+    "hook"
+  ],
+  "title": "VideoBlueprint",
+  "type": "object"
+}

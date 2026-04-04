@@ -1,0 +1,62 @@
+{
+  "cand_viral_a": {
+    "transcript": [
+      {
+        "start_seconds": 0.0,
+        "end_seconds": 1.1,
+        "text": "Stop drowning your fiddle leaf — here's why yellow leaves happen."
+      },
+      {
+        "start_seconds": 1.1,
+        "end_seconds": 4.2,
+        "text": "Mistake one: watering on a calendar instead of soil dryness."
+      }
+    ],
+    "hook_label": "pattern_interrupt",
+    "overlay_cut_points": [
+      { "t_seconds": 1.0, "kind": "jump_cut" },
+      { "t_seconds": 3.0, "kind": "overlay" }
+    ],
+    "cta_kind": "soft",
+    "product_integration": "none"
+  },
+  "cand_viral_b": {
+    "transcript": [
+      {
+        "start_seconds": 0.0,
+        "end_seconds": 2.0,
+        "text": "POV: you switched to bottom watering and the roots look healthier."
+      }
+    ],
+    "hook_label": "curiosity_gap",
+    "overlay_cut_points": [{ "t_seconds": 2.5, "kind": "beat" }],
+    "cta_kind": "link_in_bio",
+    "product_integration": "subtle"
+  },
+  "cand_std_c": {
+    "transcript": [
+      {
+        "start_seconds": 0.0,
+        "end_seconds": 3.0,
+        "text": "Here's my Sunday plant checklist in under thirty seconds."
+      }
+    ],
+    "hook_label": "tutorial",
+    "overlay_cut_points": [],
+    "cta_kind": "none",
+    "product_integration": "none"
+  },
+  "cand_std_d": {
+    "transcript": [
+      {
+        "start_seconds": 0.0,
+        "end_seconds": 2.5,
+        "text": "Sponsored: this grow light changed my north-facing room."
+      }
+    ],
+    "hook_label": "listicle",
+    "overlay_cut_points": [{ "t_seconds": 2.0, "kind": "overlay" }],
+    "cta_kind": "hard",
+    "product_integration": "heavy_branded"
+  }
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "competitor_id": "cmp_planttok_01",
+    "handle": "@planttok_alpha",
+    "platform": "tiktok",
+    "notes": "Fast hooks, heavy on-screen captions in first second.",
+    "recent_hook_pattern": "Stop doing X if you want Y"
+  },
+  {
+    "competitor_id": "cmp_shorts_green",
+    "handle": "@shorts_greenery",
+    "platform": "shorts",
+    "notes": "Calm voiceover + macro leaf shots.",
+    "recent_hook_pattern": "POV: you finally tried …"
+  }
+]

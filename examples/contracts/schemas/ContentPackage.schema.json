@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "MediaAssetRef": {
+      "additionalProperties": false,
+      "description": "Pointer to a rendered binary (path, object store key, or local dev path).",
+      "properties": {
+        "path": {
+          "description": "Filesystem path, object key, or URI string.",
+          "title": "Path",
+          "type": "string"
+        },
+        "mime_type": {
+          "default": "video/mp4",
+          "description": "IANA media type for the primary asset.",
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "bytes_approx": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Approximate size in bytes for quota checks.",
+          "title": "Bytes Approx"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "MediaAssetRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Stage 2 output: publishable bundle tied to a blueprint and run.",
+  "properties": {
+    "package_id": {
+      "description": "Unique content package identifier.",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "run_id": {
+      "description": "Pipeline run that produced this package.",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "blueprint_id": {
+      "description": "Source VideoBlueprint id.",
+      "title": "Blueprint Id",
+      "type": "string"
+    },
+    "matrix_id": {
+      "description": "Identity matrix for disclosure and voice/avatar context.",
+      "title": "Matrix Id",
+      "type": "string"
+    },
+    "primary_video": {
+      "$ref": "#/$defs/MediaAssetRef",
+      "description": "Main deliverable video asset."
+    },
+    "caption": {
+      "description": "Final caption text for posting.",
+      "title": "Caption",
+      "type": "string"
+    },
+    "hashtags": {
+      "description": "Hashtags to include at post time.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Hashtags",
+      "type": "array"
+    },
+    "disclosure_tag": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "#AIcreatorDemo",
+      "description": "Visible disclosure hashtag or tag for sandbox or regulated posts.",
+      "title": "Disclosure Tag"
+    }
+  },
+  "required": [
+    "package_id",
+    "run_id",
+    "blueprint_id",
+    "matrix_id",
+    "primary_video",
+    "caption"
+  ],
+  "title": "ContentPackage",
+  "type": "object"
+}

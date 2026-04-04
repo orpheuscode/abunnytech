@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "DirectiveTargetStage": {
+      "description": "Pipeline stage that may consume an optimization directive.",
+      "enum": [
+        "stage1",
+        "stage2",
+        "stage3"
+      ],
+      "title": "DirectiveTargetStage",
+      "type": "string"
+    },
+    "Envelope": {
+      "additionalProperties": false,
+      "description": "Versioned wrapper for directive or sync payloads; inner shape is consumer-defined.",
+      "properties": {
+        "schema_version": {
+          "default": "1",
+          "description": "Version of the inner payload contract; bump when payload keys or semantics change.",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "description": "Opaque JSON object interpreted by the target stage.",
+          "title": "Payload",
+          "type": "object"
+        }
+      },
+      "title": "Envelope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Versioned optimization or policy feedback targeting one or more pipeline stages.",
+  "properties": {
+    "directive_id": {
+      "description": "Unique directive identifier.",
+      "title": "Directive Id",
+      "type": "string"
+    },
+    "target_stages": {
+      "description": "Stages allowed to interpret this directive (stage1, stage2, stage3).",
+      "items": {
+        "$ref": "#/$defs/DirectiveTargetStage"
+      },
+      "title": "Target Stages",
+      "type": "array"
+    },
+    "envelope": {
+      "$ref": "#/$defs/Envelope",
+      "description": "Versioned inner payload consumed by workers."
+    },
+    "rationale": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Human-readable reason for the directive (ops, safety, performance).",
+      "title": "Rationale"
+    }
+  },
+  "required": [
+    "directive_id",
+    "envelope"
+  ],
+  "title": "OptimizationDirectiveEnvelope",
+  "type": "object"
+}

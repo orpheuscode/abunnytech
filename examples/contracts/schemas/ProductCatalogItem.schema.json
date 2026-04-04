@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "ProductAvailability": {
+      "description": "High-level availability for catalog display.",
+      "enum": [
+        "in_stock",
+        "out_of_stock",
+        "unknown"
+      ],
+      "title": "ProductAvailability",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Commerce handoff: a product that may be featured in generated content.",
+  "properties": {
+    "sku": {
+      "description": "Stock keeping unit or stable product key.",
+      "title": "Sku",
+      "type": "string"
+    },
+    "title": {
+      "description": "Display title for scripts and captions.",
+      "title": "Title",
+      "type": "string"
+    },
+    "price": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Unit price; JSON may use number or string for precision.",
+      "title": "Price"
+    },
+    "currency": {
+      "default": "USD",
+      "description": "ISO 4217 currency code.",
+      "title": "Currency",
+      "type": "string"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Canonical product or affiliate landing URL.",
+      "title": "Url"
+    },
+    "availability": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProductAvailability"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional stock signal for copy generation."
+    }
+  },
+  "required": [
+    "sku",
+    "title"
+  ],
+  "title": "ProductCatalogItem",
+  "type": "object"
+}

@@ -1,0 +1,12 @@
+{
+  "directive_id": "dir_opt_441b",
+  "target_stages": ["stage2", "stage1"],
+  "envelope": {
+    "schema_version": "1",
+    "payload": {
+      "hook_max_chars": 200,
+      "forbid_phrases": ["guaranteed viral", "click here now"]
+    }
+  },
+  "rationale": "Hook length correlated with lower completion in last seven posts."
+}

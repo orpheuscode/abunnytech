@@ -1,0 +1,51 @@
+{
+  "manifest_id": "am_f5d5c347c979",
+  "matrix_id": "im_demo_chef_luna",
+  "dry_run": true,
+  "assets": [
+    {
+      "kind": "avatar",
+      "provider": "higgsfield",
+      "external_ref": "hf_dry_im_demo_chef_luna_c1c2b7be94",
+      "status": "stub",
+      "metadata": {
+        "preview_url": "https://example.com/fixtures/higgsfield-preview.png"
+      }
+    },
+    {
+      "kind": "voice",
+      "provider": "elevenlabs",
+      "external_ref": "el_dry_im_demo_chef_luna_f13841d9bb",
+      "status": "stub",
+      "metadata": {
+        "sample_url": "https://example.com/fixtures/voice-sample-placeholder.mp3"
+      }
+    },
+    {
+      "kind": "style_pack",
+      "provider": "nano_banana",
+      "collection_id": "nb_dry_im_demo_chef_luna_b14f0591",
+      "status": "stub",
+      "metadata": {
+        "visual_summary": {
+          "palette": [
+            "#2ECC71",
+            "#F4F6F6",
+            "#1C2833"
+          ],
+          "lighting": "bright natural kitchen window",
+          "camera": "smartphone vertical 4k",
+          "wardrobe_notes": "apron or casual knits; avoid loud logos",
+          "background_notes": "clean counter, herbs in soft focus"
+        }
+      }
+    },
+    {
+      "kind": "reference_still",
+      "provider": "nano_banana",
+      "asset_uri": "fixture://nano-banana/nb_dry_im_demo_chef_luna_b14f0591/hero_still",
+      "status": "stub",
+      "metadata": {}
+    }
+  ]
+}

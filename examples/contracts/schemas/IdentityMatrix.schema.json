@@ -1,0 +1,185 @@
+{
+  "$defs": {
+    "AvatarPackRef": {
+      "additionalProperties": false,
+      "description": "Reference to an avatar or visual identity pack.",
+      "properties": {
+        "avatar_id": {
+          "description": "Stable id within the avatar provider.",
+          "title": "Avatar Id",
+          "type": "string"
+        },
+        "provider": {
+          "default": "mock",
+          "description": "Avatar or render provider key.",
+          "title": "Provider",
+          "type": "string"
+        },
+        "preview_url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional still or thumbnail URL.",
+          "title": "Preview Url"
+        }
+      },
+      "required": [
+        "avatar_id"
+      ],
+      "title": "AvatarPackRef",
+      "type": "object"
+    },
+    "PersonaAxis": {
+      "additionalProperties": false,
+      "description": "Narrative and safety constraints for generated content.",
+      "properties": {
+        "tone": {
+          "description": "Primary voice (e.g. playful, educational, deadpan).",
+          "title": "Tone",
+          "type": "string"
+        },
+        "topics": {
+          "description": "Themes the persona should lean into.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Topics",
+          "type": "array"
+        },
+        "avoid_topics": {
+          "description": "Themes to avoid for policy or brand fit.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Avoid Topics",
+          "type": "array"
+        },
+        "disclosure_line": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional fixed disclosure line for regulated or demo contexts.",
+          "title": "Disclosure Line"
+        }
+      },
+      "required": [
+        "tone"
+      ],
+      "title": "PersonaAxis",
+      "type": "object"
+    },
+    "PlatformTarget": {
+      "description": "Platforms the identity matrix optimizes for.",
+      "enum": [
+        "tiktok",
+        "shorts",
+        "instagram_reels",
+        "youtube_shorts"
+      ],
+      "title": "PlatformTarget",
+      "type": "string"
+    },
+    "VoicePackRef": {
+      "additionalProperties": false,
+      "description": "Reference to a synthesized or licensed voice asset.",
+      "properties": {
+        "voice_id": {
+          "description": "Stable id within the voice provider.",
+          "title": "Voice Id",
+          "type": "string"
+        },
+        "provider": {
+          "default": "mock",
+          "description": "Voice synthesis or library provider key.",
+          "title": "Provider",
+          "type": "string"
+        },
+        "sample_url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional preview URL for review tooling.",
+          "title": "Sample Url"
+        }
+      },
+      "required": [
+        "voice_id"
+      ],
+      "title": "VoicePackRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Stage 0 output: canonical persona, voice, and platform targets for a creator lane.",
+  "properties": {
+    "matrix_id": {
+      "description": "Unique identity matrix identifier.",
+      "title": "Matrix Id",
+      "type": "string"
+    },
+    "display_name": {
+      "description": "Human-facing creator or lane name.",
+      "title": "Display Name",
+      "type": "string"
+    },
+    "niche": {
+      "description": "Audience or vertical label.",
+      "title": "Niche",
+      "type": "string"
+    },
+    "persona": {
+      "$ref": "#/$defs/PersonaAxis",
+      "description": "Tone, topics, and disclosure constraints."
+    },
+    "avatar": {
+      "$ref": "#/$defs/AvatarPackRef",
+      "description": "Visual identity reference."
+    },
+    "voice": {
+      "$ref": "#/$defs/VoicePackRef",
+      "description": "Audio identity reference."
+    },
+    "platform_targets": {
+      "description": "Platforms this matrix is intended to publish on.",
+      "items": {
+        "$ref": "#/$defs/PlatformTarget"
+      },
+      "title": "Platform Targets",
+      "type": "array"
+    }
+  },
+  "required": [
+    "matrix_id",
+    "display_name",
+    "niche",
+    "persona",
+    "avatar",
+    "voice"
+  ],
+  "title": "IdentityMatrix",
+  "type": "object"
+}

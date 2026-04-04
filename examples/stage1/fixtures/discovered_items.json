@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "candidate_id": "cand_viral_a",
+      "source_url": "https://example.invalid/tiktok/viral_a",
+      "platform": "tiktok",
+      "title": "3 watering mistakes killing your fiddle leaf",
+      "creator_handle": "@planttok_alpha",
+      "content_tier": "viral"
+    },
+    {
+      "candidate_id": "cand_viral_b",
+      "source_url": "https://example.invalid/shorts/viral_b",
+      "platform": "shorts",
+      "title": "POV: you finally bottom-water correctly",
+      "creator_handle": "@shorts_greenery",
+      "content_tier": "viral"
+    },
+    {
+      "candidate_id": "cand_std_c",
+      "source_url": "https://example.invalid/tiktok/std_c",
+      "platform": "tiktok",
+      "title": "Weekly plant check-in routine",
+      "creator_handle": "@planttok_alpha",
+      "content_tier": "standard"
+    },
+    {
+      "candidate_id": "cand_std_d",
+      "source_url": "https://example.invalid/tiktok/std_d",
+      "platform": "tiktok",
+      "title": "Low-light friendly picks under $40",
+      "creator_handle": "@budget_jungle",
+      "content_tier": "standard"
+    }
+  ]
+}

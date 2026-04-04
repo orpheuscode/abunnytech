@@ -1,0 +1,83 @@
+{
+  "$defs": {
+    "DistributionPlatform": {
+      "description": "Where a content package was or will be posted.",
+      "enum": [
+        "tiktok",
+        "youtube_shorts",
+        "instagram",
+        "mock"
+      ],
+      "title": "DistributionPlatform",
+      "type": "string"
+    },
+    "DistributionStatus": {
+      "description": "Lifecycle of a distribution attempt.",
+      "enum": [
+        "pending",
+        "posted",
+        "failed",
+        "removed"
+      ],
+      "title": "DistributionStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Post-Stage 2 handoff: where and when a content package was published (or attempted).",
+  "properties": {
+    "record_id": {
+      "description": "Unique distribution record identifier.",
+      "title": "Record Id",
+      "type": "string"
+    },
+    "package_id": {
+      "description": "ContentPackage.package_id that was posted.",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "platform": {
+      "$ref": "#/$defs/DistributionPlatform",
+      "description": "Target platform for this post."
+    },
+    "posted_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "UTC timestamp when the post went live; null if not yet posted.",
+      "title": "Posted At"
+    },
+    "post_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Canonical public URL of the post when available.",
+      "title": "Post Url"
+    },
+    "status": {
+      "$ref": "#/$defs/DistributionStatus",
+      "default": "pending",
+      "description": "Lifecycle state of the distribution attempt."
+    }
+  },
+  "required": [
+    "record_id",
+    "package_id",
+    "platform"
+  ],
+  "title": "DistributionRecord",
+  "type": "object"
+}

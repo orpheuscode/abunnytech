@@ -1,0 +1,10 @@
+{
+  "item_id": "redo_19aa",
+  "reason": "Caption tripped sandbox profanity filter in staging.",
+  "reason_code": "policy",
+  "blueprint_id": "vb_demo_02ab4e",
+  "package_id": "cp_demo_91fe22",
+  "payload": {
+    "suggested_tone_shift": "softer_cta"
+  }
+}

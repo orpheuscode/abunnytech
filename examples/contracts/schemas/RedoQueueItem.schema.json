@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "RedoReasonCode": {
+      "description": "Common redo classifications (free-text reason still allowed on item).",
+      "enum": [
+        "policy",
+        "quality",
+        "brand",
+        "technical",
+        "other"
+      ],
+      "title": "RedoReasonCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Work item to re-run or patch a blueprint or package.",
+  "properties": {
+    "item_id": {
+      "description": "Unique redo queue item identifier.",
+      "title": "Item Id",
+      "type": "string"
+    },
+    "reason": {
+      "description": "Free-text explanation for operators.",
+      "title": "Reason",
+      "type": "string"
+    },
+    "reason_code": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RedoReasonCode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional structured classification for routing and metrics."
+    },
+    "blueprint_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "VideoBlueprint to regenerate when applicable.",
+      "title": "Blueprint Id"
+    },
+    "package_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ContentPackage to replace when applicable.",
+      "title": "Package Id"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "description": "Stage-specific hints; shape is not fixed by this contract.",
+      "title": "Payload",
+      "type": "object"
+    }
+  },
+  "required": [
+    "item_id",
+    "reason"
+  ],
+  "title": "RedoQueueItem",
+  "type": "object"
+}

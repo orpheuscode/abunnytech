@@ -1,0 +1,26 @@
+{
+  "manifest_id": "tm_bed75de710e5",
+  "matrix_id": "im_demo_chef_luna",
+  "items": [
+    {
+      "uri": "https://example.com/fixtures/higgsfield-preview.png",
+      "kind": "style_ref",
+      "label": "Avatar / character preview (registered asset)"
+    },
+    {
+      "uri": "https://example.com/fixtures/voice-sample-placeholder.mp3",
+      "kind": "transcript",
+      "label": "Voice sample (line read or timbre reference)"
+    },
+    {
+      "uri": "fixture://system-prompt-md",
+      "kind": "document",
+      "label": "system_prompt.md (persona brief for LLM stages)"
+    },
+    {
+      "uri": "fixture://visual-style-card",
+      "kind": "style_ref",
+      "label": "Visual style card (palette / lighting / camera)"
+    }
+  ]
+}

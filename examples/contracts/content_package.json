@@ -1,0 +1,14 @@
+{
+  "package_id": "cp_demo_91fe22",
+  "run_id": "run_20260404_01",
+  "blueprint_id": "vb_demo_02ab4e",
+  "matrix_id": "im_demo_7f3a9c1",
+  "primary_video": {
+    "path": "s3://demo-bucket/runs/run_20260404_01/primary.mp4",
+    "mime_type": "video/mp4",
+    "bytes_approx": 5242880
+  },
+  "caption": "Three pantry staples → dinner in 12 min. Sandbox AI demo. #weeknightmeals",
+  "hashtags": ["weeknightmeals", "cookinghacks"],
+  "disclosure_tag": "#AIcreatorDemo"
+}
