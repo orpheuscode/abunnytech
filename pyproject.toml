@@ -1,0 +1,72 @@
+[project]
+name = "abunnytech"
+version = "0.1.0"
+description = "Autonomous AI creator pipeline — contracts + stages 0–2"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "abunny-stage0-identity",
+    "abunny-stage2-generation",
+    "media-pipeline",
+    "pipeline-core",
+    "pipeline-contracts",
+    "pipeline-stage0-identity",
+    "pipeline-stage1-discover",
+    "pipeline-stage2-generate",
+    "pipeline-api",
+    "pipeline-dashboard",
+]
+
+[tool.uv.workspace]
+members = [
+    "agents/stage0_identity",
+    "agents/stage1_discovery",
+    "agents/stage2_generation",
+    "packages/core",
+    "packages/contracts",
+    "packages/media_pipeline",
+    "packages/stage0_identity",
+    "packages/stage1_discover",
+    "packages/stage2_generate",
+    "apps/api",
+    "apps/dashboard",
+]
+
+[tool.uv.sources]
+abunny-stage0-identity = { workspace = true }
+abunny-stage2-generation = { workspace = true }
+media-pipeline = { workspace = true }
+pipeline-core = { workspace = true }
+pipeline-contracts = { workspace = true }
+pipeline-stage0-identity = { workspace = true }
+pipeline-stage1-discover = { workspace = true }
+pipeline-stage2-generate = { workspace = true }
+pipeline-api = { workspace = true }
+pipeline-dashboard = { workspace = true }
+abunny-stage1-discovery = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.8",
+    "abunny-stage1-discovery",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+    "packages",
+    "agents/stage0_identity/tests",
+    "agents/stage1_discovery/tests",
+    "agents/stage2_generation/tests",
+    "packages/media_pipeline/tests",
+]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
