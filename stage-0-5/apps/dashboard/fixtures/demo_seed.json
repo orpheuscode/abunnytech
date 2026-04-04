@@ -1,0 +1,185 @@
+{
+  "identities": [
+    {
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "TechTok Sarah",
+      "archetype": "educator",
+      "tagline": "Making tech simple, one short at a time",
+      "voice": {
+        "voice_id": "sarah-v1",
+        "provider": "elevenlabs",
+        "pitch": 1.0,
+        "speed": 1.0,
+        "style": "friendly",
+        "sample_url": ""
+      },
+      "avatar": {
+        "avatar_url": "https://cdn.example.com/avatars/sarah.png",
+        "style": "realistic",
+        "background_color": "#6c5ce7",
+        "overlay_template": ""
+      },
+      "guidelines": {
+        "topics": ["AI", "coding", "gadgets"],
+        "forbidden_topics": [],
+        "tone": "casual-professional",
+        "max_video_duration_seconds": 60,
+        "preferred_formats": ["short-form", "tutorial"],
+        "hashtag_strategy": ["#techtok", "#learnontiktok", "#coding"],
+        "cta_templates": ["Follow for more tech tips!"]
+      },
+      "platforms": [
+        {"platform": "tiktok", "handle": "@techtok_sarah", "bio": "Tech educator \u2022 AI enthusiast", "active": true},
+        {"platform": "instagram", "handle": "@techtok.sarah", "bio": "Gadget reviews & coding tips", "active": true}
+      ],
+      "ai_disclosure": "This content is AI-generated."
+    },
+    {
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "FitLife Mike",
+      "archetype": "motivator",
+      "tagline": "Your daily dose of fitness motivation",
+      "voice": {
+        "voice_id": "mike-v1",
+        "provider": "elevenlabs",
+        "pitch": 0.95,
+        "speed": 1.1,
+        "style": "energetic",
+        "sample_url": ""
+      },
+      "avatar": {
+        "avatar_url": "https://cdn.example.com/avatars/mike.png",
+        "style": "realistic",
+        "background_color": "#00b894",
+        "overlay_template": ""
+      },
+      "guidelines": {
+        "topics": ["fitness", "nutrition", "mindset"],
+        "forbidden_topics": ["supplements"],
+        "tone": "energetic",
+        "max_video_duration_seconds": 45,
+        "preferred_formats": ["short-form", "motivational"],
+        "hashtag_strategy": ["#fitlife", "#gymtok", "#healthyliving"],
+        "cta_templates": ["Drop a \ud83d\udcaa if you're grinding today!"]
+      },
+      "platforms": [
+        {"platform": "tiktok", "handle": "@fitlife_mike", "bio": "Daily fitness motivation", "active": true}
+      ],
+      "ai_disclosure": "This content is AI-generated."
+    }
+  ],
+  "trending_audio": [
+    {
+      "id": "b2c3d4e5-0001-4000-8000-000000000001",
+      "platform": "tiktok",
+      "audio_id": "audio_001",
+      "title": "Chill Beats Lo-fi",
+      "artist": "LofiGirl",
+      "usage_count": 150000,
+      "trend_score": 0.92
+    },
+    {
+      "id": "b2c3d4e5-0002-4000-8000-000000000002",
+      "platform": "instagram",
+      "audio_id": "audio_002",
+      "title": "Hype Trap Intro",
+      "artist": "BeatMaster",
+      "usage_count": 87000,
+      "trend_score": 0.78
+    }
+  ],
+  "video_blueprints": [
+    {
+      "id": "c3d4e5f6-0001-4000-8000-000000000001",
+      "identity_id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "title": "5 AI Tools You Need in 2026",
+      "script": "Hook: You won't believe tool #3...\n\nScene 1: Introduction with trending sound\nScene 2: Tool #1 - ChatGPT for brainstorming\nScene 3: Tool #2 - Midjourney for thumbnails\nScene 4: Tool #3 - Cursor for coding\nScene 5: CTA and outro",
+      "audio_id": "audio_001",
+      "duration_seconds": 45,
+      "format": "short-form",
+      "status": "approved"
+    },
+    {
+      "id": "c3d4e5f6-0002-4000-8000-000000000002",
+      "identity_id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "title": "How I Automated My Morning Routine with AI",
+      "script": "Hook: My mornings used to be chaos...\n\nScene 1: The problem\nScene 2: Building the automation\nScene 3: Results after 30 days",
+      "audio_id": "audio_002",
+      "duration_seconds": 30,
+      "format": "short-form",
+      "status": "draft"
+    }
+  ],
+  "content_packages": [
+    {
+      "id": "d4e5f6a7-0001-4000-8000-000000000001",
+      "blueprint_id": "c3d4e5f6-0001-4000-8000-000000000001",
+      "identity_id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "video_url": "https://cdn.example.com/videos/demo_001.mp4",
+      "thumbnail_url": "https://cdn.example.com/thumbs/demo_001.jpg",
+      "caption": "5 AI tools that changed my workflow \ud83e\udd16",
+      "hashtags": ["#ai", "#techtok", "#productivity"],
+      "platform": "tiktok",
+      "status": "ready"
+    }
+  ],
+  "distribution_records": [
+    {
+      "id": "e5f6a7b8-0001-4000-8000-000000000001",
+      "content_package_id": "d4e5f6a7-0001-4000-8000-000000000001",
+      "platform": "tiktok",
+      "posted_at": "2026-04-03T14:30:00Z",
+      "post_url": "https://tiktok.com/@techtok_sarah/video/demo_001",
+      "status": "posted",
+      "error_message": ""
+    }
+  ],
+  "optimization_directives": [
+    {
+      "id": "f6a7b8c9-0001-4000-8000-000000000001",
+      "identity_id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "directives": [
+        {"type": "increase_hook_strength", "priority": "high"},
+        {"type": "shorten_intro", "target_seconds": 3},
+        {"type": "add_captions", "priority": "medium"}
+      ],
+      "source_metric_ids": [],
+      "summary": "Improve hook and shorten intro for better retention",
+      "confidence": 0.85
+    }
+  ],
+  "redo_queue": [
+    {
+      "id": "a7b8c9d0-0001-4000-8000-000000000001",
+      "content_package_id": "d4e5f6a7-0001-4000-8000-000000000001",
+      "reason": "Low watch-time on first 3s",
+      "priority": 1,
+      "status": "pending",
+      "target_stage": 2,
+      "processed": false
+    }
+  ],
+  "product_catalog": [
+    {
+      "id": "b8c9d0e1-0001-4000-8000-000000000001",
+      "identity_id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Creator Toolkit eBook",
+      "description": "The ultimate guide to AI-powered content creation",
+      "price_cents": 1999,
+      "url": "https://store.example.com/creator-toolkit",
+      "affiliate_code": "TECHTOK20",
+      "active": true
+    }
+  ],
+  "competitor_watchlist": [
+    {
+      "id": "c9d0e1f2-0001-4000-8000-000000000001",
+      "platform": "tiktok",
+      "handle": "@rival_creator",
+      "follower_count": 250000,
+      "avg_engagement": 4.2,
+      "notes": "Posts daily at 9 AM EST",
+      "tracked_since": "2026-03-15T00:00:00Z"
+    }
+  ]
+}
