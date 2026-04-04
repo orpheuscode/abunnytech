@@ -86,12 +86,70 @@ class MockBrowserAutomation:
         return True
 
 
+class BrowserRuntimePoster:
+    """Bridges browser_runtime (M2) into the stage-0-5 poster protocol.
+
+    Falls back to MockPlatformPoster when browser_runtime is unavailable
+    or when dry_run is True.
+    """
+
+    def __init__(self, *, dry_run: bool = True) -> None:
+        self._dry_run = dry_run
+        self._fallback = MockPlatformPoster()
+        try:
+            from browser_runtime import get_adapter, get_provider  # type: ignore[import-untyped]
+            self._br_get_provider = get_provider
+            self._br_get_adapter = get_adapter
+            self._available = True
+            log.info("browser_runtime_loaded")
+        except ImportError:
+            self._br_get_provider = None
+            self._br_get_adapter = None
+            self._available = False
+            log.info("browser_runtime_not_available_using_mock")
+
+    async def post(self, content_package: ContentPackage, platform: Platform) -> DistributionRecord:
+        if not self._available or self._dry_run:
+            return await self._fallback.post(content_package, platform)
+
+        from browser_runtime.types import Platform as BRPlatform
+        from browser_runtime.types import PostContentRequest
+
+        br_platform = BRPlatform(platform.value)
+        provider = self._br_get_provider("mock", dry_run=self._dry_run)
+        adapter = self._br_get_adapter(platform.value, provider)
+        result = await adapter.post_content(
+            PostContentRequest(
+                platform=br_platform,
+                caption=f"{content_package.caption or content_package.title}",
+                hashtags=content_package.hashtags,
+                dry_run=self._dry_run,
+            )
+        )
+
+        return DistributionRecord(
+            content_package_id=str(content_package.id),
+            identity_id=content_package.identity_id,
+            platform=platform,
+            post_url=result.post_url or "",
+            post_id=result.post_id or "",
+            status=DistributionStatus.POSTED if result.success else DistributionStatus.FAILED,
+            dry_run=self._dry_run,
+        )
+
+
 class PlaywrightBrowserAutomation:
-    """TODO: Wire Playwright page navigation, auth/session cookies, and upload flows."""
+    """Delegates to browser_runtime when available, else logs a warning."""
 
     async def execute_post(self, url: str, content: str) -> bool:
-        # TODO: Launch browser (headless configurable), open ``url``, fill caption/body from ``content``
-        # TODO: Attach media from ContentPackage assets when integrated with the service layer
-        # TODO: Handle platform-specific selectors (TikTok / IG / YouTube / X)
-        log.warning("playwright_execute_post_not_implemented", url=url, content_len=len(content))
-        return False
+        try:
+            from browser_runtime import get_provider
+            from browser_runtime.types import AgentTask
+
+            provider = get_provider("mock", dry_run=True)
+            task = AgentTask(description=f"Post content to {url}", url=url, dry_run=True)
+            result = await provider.execute(task)
+            return result.success
+        except ImportError:
+            log.warning("playwright_execute_post_requires_browser_runtime", url=url)
+            return False

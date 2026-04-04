@@ -8,7 +8,7 @@ from __future__ import annotations
 from rich.console import Console
 from rich.table import Table
 
-from apps.orchestrator.pipeline import run_pipeline
+from orchestrator.pipeline import run_pipeline
 
 console = Console()
 

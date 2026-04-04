@@ -1,0 +1,18 @@
+{
+  "id": "fb66ea16-6d70-4d14-ab02-6600897f11f2",
+  "created_at": "2026-04-04T21:50:38.353407Z",
+  "updated_at": "2026-04-04T21:50:38.353407Z",
+  "audit_log": [],
+  "outreach_record_id": "5def8da2-0de8-4779-acac-25a57810007a",
+  "identity_id": "test-creator-001",
+  "brand_name": "TechBrand Co",
+  "platform": "tiktok",
+  "subject": "Collaboration opportunity \u2014 TestCreator x TechBrand Co",
+  "body": "Hi TechBrand Co team,\n\nI'm TestCreator, a content creator on tiktok. I've been following your brand and believe there's a strong fit for a creative collaboration.\n\nMy audience is highly engaged in the content space you serve, and I'd love to explore a partnership \u2014 whether that's a product feature, sponsored series, or affiliate arrangement.\n\nWould you be open to a brief call this week?\n\nBest,\nTestCreator",
+  "tone": "professional",
+  "call_to_action": "Schedule a 15-minute intro call",
+  "status": "draft",
+  "dry_run": true,
+  "approved_by": "",
+  "approved_at": null
+}

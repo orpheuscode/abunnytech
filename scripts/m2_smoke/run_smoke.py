@@ -6,13 +6,13 @@ no real posts made. Covers all five stages (Stage 5 is gated by feature flag).
 
 Usage:
     cd abunnytech
-    python scripts/smoke/run_smoke.py
+    uv run python scripts/m2_smoke/run_smoke.py
 
     # With verbose output:
-    python scripts/smoke/run_smoke.py --verbose
+    uv run python scripts/m2_smoke/run_smoke.py --verbose
 
     # Override DB path:
-    SMOKE_DB=./tmp/smoke.db python scripts/smoke/run_smoke.py
+    SMOKE_DB=./tmp/smoke.db uv run python scripts/m2_smoke/run_smoke.py
 
 Exit codes:
     0 — all stages passed
@@ -62,7 +62,7 @@ from packages.evals.validators import assert_no_live_credentials
 
 
 _BANNER = "=" * 60
-_ANALYTICS_FIXTURE = _REPO_ROOT / "tests" / "stage4" / "fixtures" / "sample_analytics.json"
+_ANALYTICS_FIXTURE = _REPO_ROOT / "tests" / "stage34" / "stage4" / "fixtures" / "sample_analytics.json"
 
 
 def _section(title: str) -> None:

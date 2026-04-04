@@ -1,9 +1,10 @@
 [project]
 name = "abunnytech"
 version = "0.1.0"
-description = "Autonomous AI creator pipeline — contracts + stages 0–2"
+description = "Autonomous AI Creator Pipeline — hackathon integration"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    # M1 workspace packages
     "abunny-stage0-identity",
     "abunny-stage2-generation",
     "media-pipeline",
@@ -14,6 +15,25 @@ dependencies = [
     "pipeline-stage2-generate",
     "pipeline-api",
     "pipeline-dashboard",
+    # M2 workspace packages
+    "browser-runtime",
+    "abunny-evals",
+    "hackathon-pipelines",
+    # Runtime API / dashboard / orchestrator
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "streamlit>=1.41.0",
+    "httpx>=0.28.0",
+    "aiosqlite>=0.20.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "jinja2>=3.1.4",
+    "pillow>=11.0.0",
+    "structlog>=24.4.0",
+    "rich>=13.9.0",
+    "typer>=0.15.0",
+    "python-multipart>=0.0.18",
 ]
 
 [tool.uv.workspace]
@@ -21,14 +41,19 @@ members = [
     "agents/stage0_identity",
     "agents/stage1_discovery",
     "agents/stage2_generation",
+    "agents/stage3_distribution",
+    "agents/stage4_analytics",
     "packages/media_pipeline",
-    "stage-0-1-2/packages/core",
-    "stage-0-1-2/packages/contracts",
-    "stage-0-1-2/packages/stage0_identity",
-    "stage-0-1-2/packages/stage1_discover",
-    "stage-0-1-2/packages/stage2_generate",
-    "stage-0-1-2/apps/api",
-    "stage-0-1-2/apps/dashboard",
+    "packages/core",
+    "packages/pipeline_contracts",
+    "packages/stage0_identity",
+    "packages/stage1_discover",
+    "packages/stage2_generate",
+    "apps/m1/api",
+    "apps/m1/dashboard",
+    "packages/browser_runtime",
+    "packages/evals",
+    "packages/hackathon_pipelines",
 ]
 
 [tool.uv.sources]
@@ -43,24 +68,34 @@ pipeline-stage2-generate = { workspace = true }
 pipeline-api = { workspace = true }
 pipeline-dashboard = { workspace = true }
 abunny-stage1-discovery = { workspace = true }
+browser-runtime = { workspace = true }
+abunny-evals = { workspace = true }
+hackathon-pipelines = { workspace = true }
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    "httpx>=0.27",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28",
     "ruff>=0.8",
+    "mypy>=1.13.0",
     "abunny-stage1-discovery",
 ]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = [
-    "stage-0-1-2",
+    "tests",
+    "packages/pipeline_contracts/tests",
+    "packages/media_pipeline/tests",
     "agents/stage0_identity/tests",
     "agents/stage1_discovery/tests",
     "agents/stage2_generation/tests",
-    "packages/media_pipeline/tests",
+    "agents/stage3_distribution/tests",
+    "packages/hackathon_pipelines/tests",
 ]
-pythonpath = [".", "stage-0-1-2/apps/api/src"]
+pythonpath = [".", "apps/m1/api/src"]
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [build-system]

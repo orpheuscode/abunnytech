@@ -1,4 +1,4 @@
-"""Tests for apps/api FastAPI endpoints."""
+"""Tests for state_api FastAPI endpoints (state CRUD, not M1 pipeline API)."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from apps.api.main import app
+from state_api.main import app
 
 
 @pytest.fixture
 async def client(tmp_path, monkeypatch):
     monkeypatch.setenv("ABUNNYTECH_DB", str(tmp_path / "test_api.db"))
 
-    from apps.api import main as api_mod
+    from state_api import main as api_mod
 
     db = __import__("packages.state.sqlite", fromlist=["Database"]).Database(str(tmp_path / "test_api.db"))
     await db.connect()

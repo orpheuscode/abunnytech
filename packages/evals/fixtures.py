@@ -51,8 +51,8 @@ BLUEPRINT_ID = "00000000-0000-0000-0000-000000000002"
 PACKAGE_ID = "00000000-0000-0000-0000-000000000010"
 DIST_RECORD_ID = "00000000-0000-0000-0000-000000000020"
 
-_FIXTURE_DIR = Path(__file__).parents[2] / "examples" / "stage3" / "fixtures"
-_ANALYTICS_FIXTURE = Path(__file__).parents[2] / "tests" / "stage4" / "fixtures" / "sample_analytics.json"
+_FIXTURE_DIR = Path(__file__).parents[2] / "examples" / "m2" / "stage3" / "fixtures"
+_ANALYTICS_FIXTURE = Path(__file__).parents[2] / "tests" / "stage34" / "stage4" / "fixtures" / "sample_analytics.json"
 
 
 # ---------------------------------------------------------------------------

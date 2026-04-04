@@ -1,6 +1,18 @@
 target-version = "py312"
 line-length = 100
-src = ["stage-0-1-2/packages", "stage-0-1-2/apps", "packages", "agents", "integration"]
+src = [
+    "packages",
+    "apps",
+    "agents",
+    "stages",
+    "services",
+    "state_api",
+    "orchestrator",
+    "runtime_dashboard",
+    "integration",
+    "scripts",
+    "tests",
+]
 
 [lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -10,9 +22,15 @@ ignore = ["E501"]
 known-first-party = [
     "abunny_stage0_identity",
     "apps",
+    "state_api",
+    "orchestrator",
+    "runtime_dashboard",
+    "packages",
     "pipeline_core",
     "pipeline_contracts",
     "pipeline_stage0_identity",
     "pipeline_stage1_discover",
     "pipeline_stage2_generate",
+    "stages",
+    "services",
 ]

@@ -1,0 +1,15 @@
+[project]
+name = "abunny-evals"
+version = "0.1.0"
+description = "Contract validators and fixtures for pipeline smoke tests"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

@@ -337,7 +337,7 @@ class TestFeatureFlags:
         The adapter is only safe to use when stage5_monetize feature flag is on.
         """
         import ast
-        executor_path = Path(__file__).parents[1] / "agents" / "stage3_distribution" / "executor.py"
+        executor_path = Path(__file__).resolve().parents[2] / "agents" / "stage3_distribution" / "executor.py"
         source = executor_path.read_text(encoding="utf-8")
         assert "ShopifyAdapter" not in source, (
             "ShopifyAdapter must not be imported in stage3 executor — it is Stage 5 only."

@@ -3,7 +3,7 @@ Small Streamlit UI to exercise the Creator Pipeline API (stages 0–2).
 
 Run from repo root (requires streamlit + httpx, e.g. pipeline-dashboard workspace package):
 
-  uv run --project stage-0-1-2/apps/dashboard streamlit run integration/debug_dashboard.py
+  uv run --project apps/m1/dashboard streamlit run integration/debug_dashboard.py
 """
 
 from __future__ import annotations
