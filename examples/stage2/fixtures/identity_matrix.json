@@ -1,0 +1,20 @@
+{
+  "matrix_id": "mx_m1t4_fixture",
+  "display_name": "Fixture Lane",
+  "niche": "productivity",
+  "persona": {
+    "tone": "calm coach",
+    "topics": ["focus", "habits"],
+    "avoid_topics": ["politics"],
+    "disclosure_line": "AI-assisted demo content."
+  },
+  "avatar": {
+    "avatar_id": "nb_avatar_fixture_01",
+    "provider": "nano_banana"
+  },
+  "voice": {
+    "voice_id": "elevenlabs_voice_fixture_01",
+    "provider": "elevenlabs"
+  },
+  "platform_targets": ["tiktok", "shorts"]
+}

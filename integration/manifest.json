@@ -1,0 +1,36 @@
+{
+  "name": "abunnytech-pipeline-stages-0-2",
+  "version": "0.1.0",
+  "description": "Handoff bundle for integrating the creator pipeline (identity, discover, generate) with another codebase.",
+  "stage_0_1_2_root": "stage-0-1-2",
+  "api": {
+    "openapi_app": "stage-0-1-2/apps/api/src/apps/api/main.py:app",
+    "health_path": "/health",
+    "settings_path": "/settings",
+    "stage_paths": [
+      "POST /runs",
+      "POST /runs/{run_id}/stage0",
+      "POST /runs/{run_id}/stage1",
+      "POST /runs/{run_id}/stage2",
+      "GET /runs/{run_id}/artifacts"
+    ]
+  },
+  "python_packages": {
+    "contracts": "stage-0-1-2/packages/contracts",
+    "core": "stage-0-1-2/packages/core",
+    "stage0_package": "stage-0-1-2/packages/stage0_identity",
+    "stage0_agent_cli": "agents/stage0_identity",
+    "stage1_discover": "stage-0-1-2/packages/stage1_discover",
+    "stage2_generate": "stage-0-1-2/packages/stage2_generate"
+  },
+  "integration_artifacts": {
+    "env_template": "integration/env.example",
+    "debug_dashboard": "integration/debug_dashboard.py",
+    "smoke_script": "integration/smoke_test_api.py",
+    "example_persona_yaml": "integration/examples/persona.seed.yaml"
+  },
+  "docs": {
+    "handoffs": "docs/handoffs/",
+    "stage0_detail": "docs/handoffs/m1t2.md"
+  }
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "item_id": "redo_fixture_1",
+    "reason": "Tighten CTA wording for Stage 2 dry-run",
+    "reason_code": "brand",
+    "blueprint_id": "vb_m1t4_fixture",
+    "payload": {
+      "new_caption": "Try the reset — link in bio. #productivity #focus",
+      "extra_hashtags": ["microhabits"]
+    }
+  }
+]

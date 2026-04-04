@@ -1,0 +1,16 @@
+{
+  "blueprint_id": "vb_example_shape_only",
+  "matrix_id": "mx_fixture_plants",
+  "title": "3 watering mistakes killing your fiddle leaf",
+  "hook": "Stop drowning your fiddle leaf — here's why yellow leaves happen.",
+  "outline": [
+    "Hook on first beat",
+    "Beat @ 1.0s — jump_cut",
+    "Beat @ 3.0s — overlay",
+    "Close with CTA + disclosure"
+  ],
+  "suggested_caption": "#PlantPartner demo — not horticulture advice 3 watering mistakes killing your fiddle leaf",
+  "hashtags": ["watering", "lowlight", "pests", "indoorplants"],
+  "audio_id": "aud_greenhouse_bounce",
+  "duration_seconds_target": 18
+}

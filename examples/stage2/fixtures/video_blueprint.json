@@ -1,0 +1,15 @@
+{
+  "blueprint_id": "vb_m1t4_fixture",
+  "matrix_id": "mx_m1t4_fixture",
+  "title": "M1T4 fixture — quick productivity win",
+  "hook": "Stop doom-scrolling: this 20-second reset works.",
+  "outline": [
+    "Name the distraction",
+    "Two breaths + one task",
+    "Close with a tiny win"
+  ],
+  "suggested_caption": "Bookmark for your next slump. #productivity",
+  "hashtags": ["productivity", "focus"],
+  "audio_id": "trend_fixture_audio_01",
+  "duration_seconds_target": 20
+}

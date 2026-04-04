@@ -1,6 +1,6 @@
 target-version = "py312"
 line-length = 100
-src = ["packages", "apps", "agents"]
+src = ["stage-0-1-2/packages", "stage-0-1-2/apps", "packages", "agents", "integration"]
 
 [lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -9,6 +9,7 @@ ignore = ["E501"]
 [lint.isort]
 known-first-party = [
     "abunny_stage0_identity",
+    "apps",
     "pipeline_core",
     "pipeline_contracts",
     "pipeline_stage0_identity",

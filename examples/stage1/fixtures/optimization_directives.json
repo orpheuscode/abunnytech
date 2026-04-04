@@ -1,0 +1,14 @@
+[
+  {
+    "directive_id": "dir_stage1_focus",
+    "target_stages": ["stage1"],
+    "envelope": {
+      "schema_version": "1",
+      "payload": {
+        "focus_query": "indoor plant watering mistakes",
+        "extra_queries": ["propagation hacks"]
+      }
+    },
+    "rationale": "Double down on watering education this week."
+  }
+]

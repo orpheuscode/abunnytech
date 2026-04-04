@@ -21,14 +21,14 @@ members = [
     "agents/stage0_identity",
     "agents/stage1_discovery",
     "agents/stage2_generation",
-    "packages/core",
-    "packages/contracts",
     "packages/media_pipeline",
-    "packages/stage0_identity",
-    "packages/stage1_discover",
-    "packages/stage2_generate",
-    "apps/api",
-    "apps/dashboard",
+    "stage-0-1-2/packages/core",
+    "stage-0-1-2/packages/contracts",
+    "stage-0-1-2/packages/stage0_identity",
+    "stage-0-1-2/packages/stage1_discover",
+    "stage-0-1-2/packages/stage2_generate",
+    "stage-0-1-2/apps/api",
+    "stage-0-1-2/apps/dashboard",
 ]
 
 [tool.uv.sources]
@@ -54,14 +54,13 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = [
-    "tests",
-    "packages",
+    "stage-0-1-2",
     "agents/stage0_identity/tests",
     "agents/stage1_discovery/tests",
     "agents/stage2_generation/tests",
     "packages/media_pipeline/tests",
 ]
-pythonpath = ["."]
+pythonpath = [".", "stage-0-1-2/apps/api/src"]
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [build-system]

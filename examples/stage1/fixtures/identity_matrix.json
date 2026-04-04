@@ -1,0 +1,18 @@
+{
+  "matrix_id": "mx_fixture_plants",
+  "display_name": "Leaf & Lore",
+  "niche": "indoor plants",
+  "persona": {
+    "tone": "warm",
+    "topics": ["watering", "low light", "pests"],
+    "avoid_topics": ["medical claims"],
+    "disclosure_line": "#PlantPartner demo — not horticulture advice"
+  },
+  "avatar": {
+    "avatar_id": "av_plants_01"
+  },
+  "voice": {
+    "voice_id": "vo_plants_01"
+  },
+  "platform_targets": ["tiktok", "shorts"]
+}

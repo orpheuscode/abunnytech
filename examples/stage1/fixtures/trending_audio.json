@@ -1,0 +1,18 @@
+[
+  {
+    "audio_id": "aud_greenhouse_bounce",
+    "title": "Greenhouse bounce — plant niche",
+    "platform": "tiktok",
+    "trend_score": 0.88,
+    "bpm": 118,
+    "source_label": "fixture_catalog"
+  },
+  {
+    "audio_id": "aud_soft_morning",
+    "title": "Soft morning pads",
+    "platform": "shorts",
+    "trend_score": 0.71,
+    "bpm": 82,
+    "source_label": "fixture_catalog"
+  }
+]
