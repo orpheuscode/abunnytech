@@ -1,12 +1,10 @@
 [project]
-name = "pipeline-stage2-generate"
+name = "pipeline-dashboard"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "abunny-stage2-generation",
-    "media-pipeline",
-    "pipeline-core",
-    "pipeline-contracts",
+    "streamlit>=1.40",
+    "httpx>=0.27",
 ]
 
 [build-system]
@@ -14,4 +12,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pipeline_stage2_generate"]
+packages = ["src/pipeline_dashboard"]
