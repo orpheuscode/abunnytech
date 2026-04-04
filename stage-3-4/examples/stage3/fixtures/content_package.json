@@ -1,0 +1,19 @@
+{
+  "package_id": "00000000-0000-0000-0000-000000000010",
+  "blueprint_id": "00000000-0000-0000-0000-000000000002",
+  "content_type": "short_video",
+  "title": "5 pastel fits for spring 🐰",
+  "caption": "POV: your closet is giving main character energy ✨\n\nWhich look is your fave? 👇",
+  "hashtags": [
+    "#bunnygirl", "#springfashion", "#outfitcheck", "#aesthetic",
+    "#ootd", "#fashiontok", "#pastelfashion", "#viral"
+  ],
+  "media_path": null,
+  "media_url": null,
+  "thumbnail_path": null,
+  "duration_seconds": 28.5,
+  "target_platforms": ["tiktok", "instagram"],
+  "priority": 2,
+  "identity_id": "00000000-0000-0000-0000-000000000001",
+  "created_at": "2026-04-04T00:00:00"
+}
