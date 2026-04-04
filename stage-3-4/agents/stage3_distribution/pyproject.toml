@@ -1,0 +1,28 @@
+[project]
+name = "stage3-distribution"
+version = "0.1.0"
+description = "Stage 3: Distribute & Engage — posting scheduler, DM FSM, comment triage"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7.0",
+    "browser-runtime",   # local package from packages/browser_runtime
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.5.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
