@@ -23,7 +23,6 @@ import httpx
 from flask import (
     Flask,
     abort,
-    current_app,
     flash,
     redirect,
     render_template,
@@ -63,6 +62,7 @@ from runtime_dashboard.data_loader import (
 from runtime_dashboard.owner_data_store import (
     create_fixture_product,
     delete_fixture_product,
+    load_fixture_collection,
     update_fixture_identity_avatar,
 )
 from runtime_dashboard.secrets_store import (
@@ -72,8 +72,8 @@ from runtime_dashboard.secrets_store import (
     ENV_SELECTED_PRODUCT_KEY,
     ENV_TWELVE_PRIMARY,
     read_raw,
-    save_raw_values,
     save_merged,
+    save_raw_values,
 )
 
 _ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -285,7 +285,7 @@ def _preferred_product(products: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 
 def _latest_product_context(api: str | None) -> dict[str, str]:
-    products = load_product_catalog(api)
+    products = _product_catalog_for_page(api)
     preferred = _preferred_product(products)
     if not preferred:
         return {"title": "", "description": ""}
@@ -296,7 +296,7 @@ def _latest_product_context(api: str | None) -> dict[str, str]:
 
 
 def _selected_product_image_path(api: str | None) -> str | None:
-    preferred = _preferred_product(load_product_catalog(api))
+    preferred = _preferred_product(_product_catalog_for_page(api))
     if preferred is not None:
         path = _asset_path_from_static_url(preferred.get("image_url"))
         if path:
@@ -538,6 +538,60 @@ def _build_engagement_persona_payload(identities: list[dict[str, Any]]) -> dict[
     return _default_engagement_persona_payload()
 
 
+def _backfill_dashboard_items(
+    key: str,
+    items: list[dict[str, Any]] | None,
+    *,
+    api: str | None,
+) -> list[dict[str, Any]]:
+    """Return fixture-backed demo items when live dashboard collections are empty."""
+    normalized = [item for item in (items or []) if isinstance(item, dict)]
+    if api is None or normalized:
+        return normalized
+    fixtures = load_fixture_collection(key)
+    return [item for item in fixtures if isinstance(item, dict)]
+
+
+def _identities_for_page(api: str | None) -> list[dict[str, Any]]:
+    return _backfill_dashboard_items("identities", load_identities(api), api=api)
+
+
+def _trending_audio_for_page(api: str | None) -> list[dict[str, Any]]:
+    return _backfill_dashboard_items("trending_audio", load_trending_audio(api), api=api)
+
+
+def _competitors_for_page(api: str | None) -> list[dict[str, Any]]:
+    return _backfill_dashboard_items(
+        "competitor_watchlist",
+        load_competitor_watchlist(api),
+        api=api,
+    )
+
+
+def _video_blueprints_for_page(api: str | None) -> list[dict[str, Any]]:
+    return _backfill_dashboard_items("video_blueprints", load_video_blueprints(api), api=api)
+
+
+def _content_packages_for_page(api: str | None) -> list[dict[str, Any]]:
+    return _backfill_dashboard_items("content_packages", load_content_packages(api), api=api)
+
+
+def _optimization_directives_for_page(api: str | None) -> list[dict[str, Any]]:
+    return _backfill_dashboard_items(
+        "optimization_directives",
+        load_optimization_directives(api),
+        api=api,
+    )
+
+
+def _redo_queue_for_page(api: str | None) -> list[dict[str, Any]]:
+    return _backfill_dashboard_items("redo_queue", load_redo_queue(api), api=api)
+
+
+def _product_catalog_for_page(api: str | None) -> list[dict[str, Any]]:
+    return _backfill_dashboard_items("product_catalog", load_product_catalog(api), api=api)
+
+
 def _normalize_distribution_record(record: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(record)
     engagement = normalized.get("engagement_summary")
@@ -590,7 +644,14 @@ def _distribution_records_for_page(api: str | None) -> list[dict[str, Any]]:
             return [_normalize_distribution_record(record) for record in filtered_posts]
     except httpx.HTTPError:
         pass
-    return [_normalize_distribution_record(record) for record in load_distribution_records(api)]
+    live_records = [record for record in load_distribution_records(api) if isinstance(record, dict)]
+    if live_records:
+        return [_normalize_distribution_record(record) for record in live_records]
+    return [
+        _normalize_distribution_record(record)
+        for record in load_fixture_collection("distribution_records")
+        if isinstance(record, dict)
+    ]
 
 
 def _file_path_to_static_url(path_str: str | None) -> str | None:
@@ -704,6 +765,8 @@ def _load_preview_records(*, limit: int = 24) -> tuple[list[dict[str, Any]], boo
             reverse=True,
         )
         records.sort(key=lambda record: int(record.get("sort_priority", 99)))
+        if not records:
+            return _fallback_preview_records(limit), True
         return records, True
     except httpx.HTTPError:
         return _fallback_preview_records(limit), False
@@ -953,7 +1016,7 @@ def create_app() -> Flask:
     def demo_run_pipeline() -> Any:
         api = _api_base()
         product_context = _latest_product_context(api)
-        identities = load_identities(api)
+        identities = _identities_for_page(api)
         browser_runtime = _browser_runtime_state()
         run_mode = _normalize_demo_run_mode(
             request.form.get("run_mode"),
@@ -992,7 +1055,7 @@ def create_app() -> Flask:
     def demo_run_instant_demo() -> Any:
         api = _api_base()
         product_context = _latest_product_context(api)
-        identities = load_identities(api)
+        identities = _identities_for_page(api)
         browser_runtime = _browser_runtime_state()
         run_mode = _normalize_demo_run_mode(
             request.form.get("run_mode"),
@@ -1068,7 +1131,7 @@ def create_app() -> Flask:
     def demo_generate_video() -> Any:
         api = _api_base()
         product_context = _latest_product_context(api)
-        identities = load_identities(api)
+        identities = _identities_for_page(api)
         browser_runtime = _browser_runtime_state()
         run_mode = _normalize_demo_run_mode(
             request.form.get("run_mode"),
@@ -1381,7 +1444,7 @@ def create_app() -> Flask:
                 page_title="Identity",
                 avatar_library=avatar_library,
                 avatar_library_path=str((_UPLOAD_DIR / _AVATAR_SUBDIR).resolve()),
-                identities=load_identities(api),
+                identities=_identities_for_page(api),
             )
 
         if slug == "discovery":
@@ -1389,8 +1452,8 @@ def create_app() -> Flask:
                 "owner/discovery.html",
                 **_nav_context(slug),
                 page_title="Discovery",
-                trending=load_trending_audio(api),
-                competitors=load_competitor_watchlist(api),
+                trending=_trending_audio_for_page(api),
+                competitors=_competitors_for_page(api),
             )
 
         if slug == "content":
@@ -1398,8 +1461,8 @@ def create_app() -> Flask:
                 "owner/content.html",
                 **_nav_context(slug),
                 page_title="Content",
-                blueprints=load_video_blueprints(api),
-                packages=load_content_packages(api),
+                blueprints=_video_blueprints_for_page(api),
+                packages=_content_packages_for_page(api),
             )
 
         if slug == "distribution":
@@ -1416,13 +1479,13 @@ def create_app() -> Flask:
                 "owner/analytics.html",
                 **_nav_context(slug),
                 page_title="Analytics",
-                directives=load_optimization_directives(api),
-                redo=load_redo_queue(api),
+                directives=_optimization_directives_for_page(api),
+                redo=_redo_queue_for_page(api),
                 **analytics,
             )
 
         if slug == "catalog":
-            products = load_product_catalog(api)
+            products = _product_catalog_for_page(api)
             selected_key = str(read_raw().get(ENV_SELECTED_PRODUCT_KEY) or "").strip()
             preferred = _preferred_product(products)
             preferred_key = ""
@@ -1454,11 +1517,11 @@ def create_app() -> Flask:
 
 
 def _render_demo(api: str | None) -> Any:
-    identities = load_identities(api)
-    products = load_product_catalog(api)
-    trending = load_trending_audio(api)
-    blueprints = load_video_blueprints(api)
-    packages = load_content_packages(api)
+    identities = _identities_for_page(api)
+    products = _product_catalog_for_page(api)
+    trending = _trending_audio_for_page(api)
+    blueprints = _video_blueprints_for_page(api)
+    packages = _content_packages_for_page(api)
     records = _distribution_records_for_page(api)
     browser_runtime = _browser_runtime_state()
     demo_run_mode = _normalize_demo_run_mode(
@@ -1483,11 +1546,11 @@ def _render_demo(api: str | None) -> Any:
         ("optimization_directives", "Optimization Directive"),
     ]
     loaders: dict[str, Any] = {
-        "identities": load_identities,
-        "video_blueprints": load_video_blueprints,
-        "content_packages": load_content_packages,
+        "identities": _identities_for_page,
+        "video_blueprints": _video_blueprints_for_page,
+        "content_packages": _content_packages_for_page,
         "distribution_records": _distribution_records_for_page,
-        "optimization_directives": load_optimization_directives,
+        "optimization_directives": _optimization_directives_for_page,
     }
 
     artifact = request.args.get("artifact", "identities")
@@ -1521,9 +1584,9 @@ def _render_demo(api: str | None) -> Any:
             selected = data
         selected_json = json.dumps(selected, indent=2, default=str)
 
-    directives = load_optimization_directives(api)
+    directives = _optimization_directives_for_page(api)
     latest_directive = directives[0] if directives else None
-    redo = load_redo_queue(api)
+    redo = _redo_queue_for_page(api)
     redo_pending = [r for r in redo if isinstance(r, dict) and not r.get("processed")]
     control_plane_base = _control_plane_base()
     try:

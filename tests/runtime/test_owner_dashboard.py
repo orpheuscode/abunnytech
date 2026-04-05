@@ -307,6 +307,53 @@ def test_dashboard_hides_placeholder_fixture_rows(tmp_path, monkeypatch) -> None
     assert b"No products in the storefront yet." in catalog.data
 
 
+def test_dashboard_backfills_live_empty_sections_with_fixture_data(tmp_path, monkeypatch) -> None:
+    client = _build_client(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(dashboard, "load_trending_audio", lambda api: [])
+    monkeypatch.setattr(dashboard, "load_competitor_watchlist", lambda api: [])
+    monkeypatch.setattr(dashboard, "load_video_blueprints", lambda api: [])
+    monkeypatch.setattr(dashboard, "load_content_packages", lambda api: [])
+    monkeypatch.setattr(dashboard, "load_distribution_records", lambda api: [])
+    monkeypatch.setattr(dashboard, "load_pipeline_posts", lambda base: [])
+    monkeypatch.setattr(dashboard, "load_optimization_directives", lambda api: [])
+    monkeypatch.setattr(dashboard, "load_redo_queue", lambda api: [])
+    monkeypatch.setattr(dashboard, "load_product_catalog", lambda api: [])
+    monkeypatch.setattr(
+        dashboard,
+        "_get_json",
+        lambda api_base, path: (_ for _ in ()).throw(httpx.ConnectError("offline")),
+    )
+
+    with client.session_transaction() as sess:
+        sess["use_fixture"] = False
+        sess["api_base"] = "http://localhost:8000"
+
+    discovery = client.get("/discovery")
+    assert discovery.status_code == 200
+    assert b"Chill Beats Lo-fi" in discovery.data
+    assert b"@rival_creator" in discovery.data
+
+    content = client.get("/content")
+    assert content.status_code == 200
+    assert b"5 AI Tools You Need in 2026" in content.data
+    assert b"5 AI tools that changed my workflow" in content.data
+
+    distribution = client.get("/distribution")
+    assert distribution.status_code == 200
+    assert b"techtok_sarah" in distribution.data
+    assert b"Replies logged: 2" in distribution.data
+
+    analytics = client.get("/analytics")
+    assert analytics.status_code == 200
+    assert b"Increase Hook Strength" in analytics.data
+    assert b"Low watch-time on first 3s" in analytics.data
+
+    catalog = client.get("/catalog")
+    assert catalog.status_code == 200
+    assert b"Creator Toolkit eBook" in catalog.data
+
+
 def test_demo_run_gemini_orchestrator_flashes_result(tmp_path, monkeypatch) -> None:
     client = _build_client(tmp_path, monkeypatch)
 
@@ -509,6 +556,32 @@ def test_preview_page_falls_back_to_local_videos_when_control_plane_is_offline(
     assert b"sample" in resp.data
     assert b"hackathon_videos" in resp.data
     assert b"sample.mp4" in resp.data
+
+
+def test_preview_page_falls_back_to_local_videos_when_control_plane_has_no_runs(
+    tmp_path, monkeypatch
+) -> None:
+    client = _build_client(tmp_path, monkeypatch)
+    video_dir = tmp_path / "output" / "hackathon_videos"
+    video_dir.mkdir(parents=True)
+    sample_video = video_dir / "sample.mp4"
+    sample_video.write_bytes(b"mp4")
+
+    def fake_get_json(api_base: str, path: str):
+        assert path == "/pipeline/runs?limit=24"
+        return {"runs": []}
+
+    monkeypatch.setattr(dashboard, "_get_json", fake_get_json)
+    monkeypatch.setattr(dashboard, "_ROOT", str(tmp_path / "runtime_dashboard"))
+
+    with client.session_transaction() as sess:
+        sess["use_fixture"] = False
+        sess["api_base"] = "http://localhost:8000"
+
+    resp = client.get("/preview")
+    assert resp.status_code == 200
+    assert b"sample" in resp.data
+    assert sample_video.as_posix().encode() in resp.data
 
 
 def test_demo_run_pipeline_flashes_latest_run_summary(tmp_path, monkeypatch) -> None:
