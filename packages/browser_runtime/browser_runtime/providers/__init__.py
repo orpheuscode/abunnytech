@@ -1,8 +1,9 @@
 """Provider registry and factory."""
+
 from __future__ import annotations
 
 from .base import BrowserProvider
-from .browser_use import BrowserUseProvider
+from .browser_use import BrowserUseBrowserConfig, BrowserUseProvider
 from .code_agent import CodeAgentProvider
 from .mock import MockProvider
 from .platform_api import PlatformAPIProvider
@@ -17,6 +18,7 @@ def get_provider(provider_name: str | None = None, dry_run: bool = True) -> Brow
     Reads BROWSER_PROVIDER env var if provider_name is not supplied.
     """
     import os
+
     name = provider_name or os.getenv("BROWSER_PROVIDER", "mock")
     match name.lower():
         case "mock":
@@ -36,6 +38,7 @@ def get_provider(provider_name: str | None = None, dry_run: bool = True) -> Brow
 
 __all__ = [
     "BrowserProvider",
+    "BrowserUseBrowserConfig",
     "BrowserUseProvider",
     "CodeAgentProvider",
     "MockProvider",

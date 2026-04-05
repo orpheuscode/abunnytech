@@ -10,6 +10,14 @@ from browser_runtime.providers.mock import MockProvider
 
 from hackathon_pipelines.adapters.facade import BrowserProviderFacade
 from hackathon_pipelines.adapters.live_api import GeminiTemplateAgent, TwelveLabsUnderstanding, VeoVideoGenerator
+from hackathon_pipelines.browseruse_instascrape import (
+    InstascrapeCreatorRecord,
+    InstascrapeReelRecord,
+    InstascrapeSnapshot,
+    load_instascrape_snapshot,
+    load_reel_surface_metrics_from_instascrape,
+    make_instascrape_metrics_loader,
+)
 from hackathon_pipelines.contracts import OrchestratorRunSummary
 from hackathon_pipelines.gemini_tool_orchestrator import (
     GeminiOrchestrationResult,
@@ -30,6 +38,21 @@ from hackathon_pipelines.ports import (
     TemplateStorePort,
     VeoGeneratorPort,
     VideoUnderstandingPort,
+)
+from hackathon_pipelines.prototype_bridge import (
+    ACTION_HOOK_MUSIC_ANALYSIS_PROMPT,
+    LOCKED_REFERENCE_VEO_SYSTEM_PROMPT,
+    MARKETING_SYNTHESIS_SYSTEM_PROMPT,
+    MarketingVideoAnalysis,
+    append_marketing_analysis_csv,
+    build_locked_reference_veo_prompt,
+    build_weighted_marketing_synthesis_prompt,
+    dump_analysis_json,
+    export_analysis_json,
+    load_marketing_analysis_csvs,
+    parse_action_hook_music_sections,
+    run_gemini_marketing_synthesis,
+    write_locked_veo_prompt_files,
 )
 from hackathon_pipelines.scoring import (
     DEFAULT_PRODUCT_SCORE_WEIGHTS,
@@ -57,6 +80,7 @@ class DryRunStack:
     orchestrator: HackathonOrchestrator
     templates: MemoryTemplateStore
     analytics: MemoryAnalyticsSink
+    products: MemoryProductCatalog
 
 
 @dataclass(frozen=True)
@@ -82,7 +106,8 @@ def build_dry_run_stack() -> DryRunStack:
         reel_sink=MemoryReelSink(),
         gemini=GeminiTemplateAgent(dry_run=True),
     )
-    products = ProductDiscoveryPipeline(browser=browser, catalog=MemoryProductCatalog())
+    product_catalog = MemoryProductCatalog()
+    products = ProductDiscoveryPipeline(browser=browser, catalog=product_catalog)
     video = VideoGenerationPipeline(
         gemini=GeminiTemplateAgent(dry_run=True),
         veo=VeoVideoGenerator(dry_run=True),
@@ -99,7 +124,12 @@ def build_dry_run_stack() -> DryRunStack:
         products=products,
         templates=templates,
     )
-    return DryRunStack(orchestrator=orch, templates=templates, analytics=analytics)
+    return DryRunStack(
+        orchestrator=orch,
+        templates=templates,
+        analytics=analytics,
+        products=product_catalog,
+    )
 
 
 def build_dry_run_orchestrator() -> HackathonOrchestrator:
@@ -110,6 +140,7 @@ def build_runtime_stack(
     *,
     dry_run: bool = True,
     db_path: str | Path = Path("data") / "hackathon_pipelines.sqlite3",
+    instascrape_db_path: str | Path | None = None,
     browser_provider: BrowserProvider | None = None,
     video_understanding: VideoUnderstandingPort | None = None,
     gemini: GeminiVideoAgentPort | None = None,
@@ -147,6 +178,9 @@ def build_runtime_stack(
         templates=templates,
         reel_sink=reels,
         gemini=gemini or GeminiTemplateAgent(dry_run=dry_run),
+        seed_metrics_loader=(
+            make_instascrape_metrics_loader(instascrape_db_path) if instascrape_db_path is not None else None
+        ),
     )
     products_pipeline = ProductDiscoveryPipeline(browser=browser, catalog=products)
     video_pipeline = VideoGenerationPipeline(
@@ -183,7 +217,13 @@ __all__ = [
     "GeminiOrchestrationResult",
     "GeminiTemplateAgent",
     "HackathonOrchestrator",
+    "InstascrapeCreatorRecord",
+    "InstascrapeReelRecord",
+    "InstascrapeSnapshot",
     "LoopRunnerConfig",
+    "LOCKED_REFERENCE_VEO_SYSTEM_PROMPT",
+    "MARKETING_SYNTHESIS_SYSTEM_PROMPT",
+    "MarketingVideoAnalysis",
     "MemoryAnalyticsSink",
     "MemoryProductCatalog",
     "MemoryReelSink",
@@ -202,13 +242,26 @@ __all__ = [
     "TwelveLabsUnderstanding",
     "VideoGenerationPipeline",
     "VeoVideoGenerator",
+    "ACTION_HOOK_MUSIC_ANALYSIS_PROMPT",
+    "append_marketing_analysis_csv",
     "best_product",
+    "build_locked_reference_veo_prompt",
+    "build_weighted_marketing_synthesis_prompt",
     "build_dry_run_orchestrator",
     "build_dry_run_stack",
     "build_runtime_stack",
     "dispatch_pipeline_tool",
+    "dump_analysis_json",
+    "export_analysis_json",
+    "load_instascrape_snapshot",
+    "load_reel_surface_metrics_from_instascrape",
+    "load_marketing_analysis_csvs",
+    "make_instascrape_metrics_loader",
+    "parse_action_hook_music_sections",
     "product_score_breakdown",
     "rank_products",
+    "run_gemini_marketing_synthesis",
     "run_gemini_pipeline_orchestration",
     "score_product",
+    "write_locked_veo_prompt_files",
 ]

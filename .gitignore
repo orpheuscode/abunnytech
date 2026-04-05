@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
 *.db
+*.db-shm
+*.db-wal
 *.jsonl
 *.log
 .env
@@ -14,3 +16,4 @@ artifacts/
 examples/stage2/out/
 dist/
 .python-version.bak
+data/reels/

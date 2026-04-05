@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Callable
 from pathlib import Path
 
-from browser_runtime.types import AgentResult, AgentTask
+from browser_runtime.types import AgentResult, AgentTask, ProviderType
 
 from hackathon_pipelines.contracts import (
     ReelDiscoveryThresholds,
@@ -54,6 +54,7 @@ class ReelDiscoveryPipeline:
         thresholds: ReelDiscoveryThresholds | None = None,
         download_dir: Path | None = None,
         metrics_parser: Callable[[AgentResult], list[ReelSurfaceMetrics]] | None = None,
+        seed_metrics_loader: Callable[[], list[ReelSurfaceMetrics]] | None = None,
     ) -> None:
         self._browser = browser
         self._video = video_understanding
@@ -63,6 +64,7 @@ class ReelDiscoveryPipeline:
         self._thresholds = thresholds or ReelDiscoveryThresholds()
         self._download_dir = download_dir or Path.cwd() / "data" / "reels"
         self._metrics_parser = metrics_parser or _parse_reels_from_agent
+        self._seed_metrics_loader = seed_metrics_loader
 
     def _passes(self, m: ReelSurfaceMetrics) -> bool:
         t = self._thresholds
@@ -73,17 +75,36 @@ class ReelDiscoveryPipeline:
         Scroll reels via Browser Use, persist metrics, download passers, analyze, template with Gemini.
         When the agent returns no structured reels, a single dry-run metric is synthesized if output indicates dry_run.
         """
-        task = AgentTask(
-            description=(
-                "Open Instagram Reels in a logged-in session. Scroll, and for each visible reel record: "
-                "reel_id, source_url, views, likes, comments. When finished, respond with JSON only in the form "
-                '{"reels":[{"reel_id":"...","source_url":"...","views":0,"likes":0,"comments":0}]}'
-            ),
-            max_steps=40,
-            metadata={"pipeline": "reel_discovery"},
-        )
-        result = await self._browser.run_task(task)
-        metrics = self._metrics_parser(result)
+        metrics: list[ReelSurfaceMetrics] = []
+        result: AgentResult | None = None
+        if self._seed_metrics_loader is not None:
+            metrics = self._seed_metrics_loader()
+
+        if not metrics:
+            task = AgentTask(
+                description=(
+                    "Open Instagram Reels in a logged-in session. Scroll, and for each visible reel record: "
+                    "reel_id, source_url, views, likes, comments. When finished, respond with JSON only in the form "
+                    '{"reels":[{"reel_id":"...","source_url":"...","views":0,"likes":0,"comments":0}]}'
+                ),
+                max_steps=40,
+                metadata={"pipeline": "reel_discovery"},
+            )
+            result = await self._browser.run_task(task)
+            metrics = self._metrics_parser(result)
+        else:
+            result = AgentResult(
+                task_id=f"seed_{uuid.uuid4().hex[:12]}",
+                success=True,
+                provider=ProviderType.MOCK,
+                output={"seed_metrics": len(metrics)},
+                dry_run=True,
+            )
+
+        if result is None:
+            msg = "Reel discovery did not produce an agent result."
+            raise RuntimeError(msg)
+
         if not metrics and result.dry_run:
             metrics = [
                 ReelSurfaceMetrics(
@@ -135,7 +156,7 @@ class ReelDiscoveryPipeline:
         dl = AgentTask(
             description=(
                 f"Download the Instagram reel {m.reel_id} from {m.source_url} to a local mp4 under "
-                f"{self._download_dir!s}. Return JSON {{\"path\":\"absolute path\"}}."
+                f'{self._download_dir!s}. Return JSON {{"path":"absolute path"}}.'
             ),
             max_steps=25,
             metadata={"reel_id": m.reel_id},
