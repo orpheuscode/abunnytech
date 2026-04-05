@@ -1,9 +1,11 @@
-import os
 import csv
 from pathlib import Path
 
-from dotenv import load_dotenv
-from google import genai
+from genai_client import (
+    create_genai_client,
+    gemini_model_name,
+    vertex_publisher_model,
+)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CSV_PATHS = [
@@ -13,28 +15,26 @@ CSV_PATHS = [
 OUTPUT_PATH = SCRIPT_DIR / "Total Analysis Output.txt"
 
 SYSTEM_PROMPT = (
-    "You are an expert video marketing strategist and creative director. "
-    "You will be given analyses of multiple marketing videos. Each analysis "
-    "covers the ACTION (what happens on screen), HOOK (how it grabs attention), "
-    "and MUSIC (audio/tempo/mood). Some videos also include VIEWS and LIKES data.\n\n"
-    "WEIGHTING RULES:\n"
-    "- Videos with higher views and likes are PROVEN performers. Weight their "
-    "patterns, techniques, and style MORE heavily in your synthesis.\n"
-    "- Videos with 0 views and 0 likes have UNKNOWN performance — not bad, just "
-    "no data yet. Still include their patterns normally, but if a conflict arises "
-    "between an unknown video and a proven high-performer, favor the proven one.\n"
-    "- The higher the views and likes, the more you should borrow from that "
-    "video's specific action style, hook strategy, and music choices.\n\n"
-    "Your job is to:\n"
-    "1) Synthesize patterns across all the videos — what works, what's common, "
-    "what makes them effective. Call out which high-performing videos influenced "
-    "your decisions most.\n"
-    "2) Generate a detailed, production-ready prompt to create a NEW marketing "
-    "video for a similar product. The prompt should specify: scene description, "
-    "camera movements, talent actions with timestamps, the hook strategy, "
-    "music/audio direction, voiceover script, color palette, and mood.\n"
-    "Be specific enough that a video production team or AI video generator "
-    "could produce the video from your prompt alone."
+    "ROLE: Expert Video Marketing Strategist & Creative Director.\n"
+    "GOAL: Synthesize video performance data into high-converting AI video prompts.\n\n"
+    
+    "DATA WEIGHTING RULES:\n"
+    "- PRIORITIZE: Heavily weight patterns from videos with high Views/Likes (Proven Performers).\n"
+    "- NEUTRAL: Treat videos with 0 views/likes as unknown; include patterns but defer to high-performers if styles conflict.\n"
+    "- REPLICATE: Borrow the specific HOOK, CAMERA MOVEMENT, and LIGHTING from top performers.\n\n"
+    
+    "OUTPUT CONSTRAINTS (FOR VEO 3.1 FAST STABILITY):\n"
+    "- MAX CONCEPTS: Output exactly TWO (2) video concepts.\n"
+    "- PROMPT LENGTH: Keep each 'VEO_PROMPT' under 75 words. Use concrete nouns, not marketing jargon.\n"
+    "- TEXT SAFETY: Do NOT describe labels, ingredients, or small text (prevents morphing/hallucination).\n"
+    "- VISUAL FOCUS: Describe physical actions, lighting (e.g., 'Cinematic rim light'), and camera paths (e.g., 'Slow push-in').\n\n"
+    
+    "RESPONSE FORMAT:\n"
+    "1. [INTERNAL SYNTHESIS]: 2-sentence summary of which high-performing video influenced the choice.\n"
+    "2. [CONCEPT 1]: A creative variation.\n"
+    "3. [CONCEPT 2 - THE PROVEN WINNER]: The concept most closely following the top-performing data.\n\n"
+    
+    "Each concept MUST include a 'VEO_PROMPT' block that can be sent directly to the video generator."
 )
 
 
@@ -79,37 +79,38 @@ def build_user_prompt(rows):
 
 
 def main():
-    load_dotenv(SCRIPT_DIR / ".env")
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        print("Error: Set GEMINI_API_KEY in .env")
-        raise SystemExit(1)
-
     print("Loading video analyses...")
     rows = load_results()
     print(f"Total: {len(rows)} video analyses loaded")
 
-    client = genai.Client(api_key=api_key)
+    client = create_genai_client(SCRIPT_DIR)
+    model = gemini_model_name()
+    if client.vertexai:
+        model = vertex_publisher_model(model)
     user_prompt = build_user_prompt(rows)
 
-    print("Sending to Gemini Flash...")
+    print(f"Sending to {model}...")
     response = client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model=model,
         contents=[
             {"role": "user", "parts": [{"text": SYSTEM_PROMPT + "\n\n" + user_prompt}]}
         ],
     )
 
     output = response.text
-    print("\n" + output)
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         f.write(output)
-    print(f"\nSaved to {OUTPUT_PATH}")
-
     veo_prompt_path = SCRIPT_DIR / "input" / "veo" / "user_prompt.txt"
     with open(veo_prompt_path, "w", encoding="utf-8") as f:
         f.write(output)
+
+    try:
+        print("\n" + output)
+    except UnicodeEncodeError:
+        print("\n(Console cannot display full Unicode output; see Total Analysis Output.txt)")
+
+    print(f"\nSaved to {OUTPUT_PATH}")
     print(f"Also saved to {veo_prompt_path} (ready for generate.py)")
 
 
