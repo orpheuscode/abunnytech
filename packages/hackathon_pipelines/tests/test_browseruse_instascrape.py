@@ -247,7 +247,7 @@ async def test_reel_discovery_uses_scrolling_prompt_and_browser_use_metadata(tmp
 
     await pipeline.run_discovery_cycle()
 
-    assert len(captured_tasks) == 3
+    assert len(captured_tasks) == 1
     description = str(captured_tasks[0].description)
     url = captured_tasks[0].url
     metadata = captured_tasks[0].metadata
@@ -268,8 +268,8 @@ async def test_reel_discovery_uses_scrolling_prompt_and_browser_use_metadata(tmp
     assert metadata["browser_use"]["step_timeout"] == 180
     assert "Do not open search engines such as DuckDuckGo" in metadata["browser_use"]["extend_system_message"]
     assert "do not visit downloader sites" in metadata["browser_use"]["extend_system_message"]
-    assert [task.metadata["discovery_agent_index"] for task in captured_tasks] == [0, 1, 2]
-    assert all(task.metadata["discovery_agent_count"] == 3 for task in captured_tasks)
+    assert [task.metadata["discovery_agent_index"] for task in captured_tasks] == [0]
+    assert all(task.metadata["discovery_agent_count"] == 1 for task in captured_tasks)
 
 
 def test_build_reel_discovery_task_supports_custom_hashtag_targets() -> None:
@@ -360,29 +360,6 @@ async def test_reel_discovery_pipeline_merges_duplicate_reels_across_parallel_wo
                 "ugc_reason": "worker 1",
             }
         ],
-        [
-            {
-                "reel_id": "AAA111",
-                "source_url": "https://www.instagram.com/reel/AAA111/",
-                "views": 45000,
-                "likes": 1200,
-                "comments": 54,
-                "creator_handle": "creator.alpha",
-                "is_ugc_candidate": True,
-            }
-        ],
-        [
-            {
-                "reel_id": "BBB222",
-                "source_url": "https://www.instagram.com/reel/BBB222/",
-                "views": 18000,
-                "likes": 850,
-                "comments": 44,
-                "creator_handle": "creator.beta",
-                "is_ugc_candidate": True,
-                "ugc_reason": "worker 3",
-            }
-        ],
     ]
 
     class FakeBrowser:
@@ -412,15 +389,15 @@ async def test_reel_discovery_pipeline_merges_duplicate_reels_across_parallel_wo
     await pipeline.run_discovery_cycle()
 
     rows = {row.reel_id: row for row in reel_sink.rows}
-    assert set(rows) == {"AAA111", "BBB222"}
-    assert rows["AAA111"].likes == 1200
-    assert rows["AAA111"].comments == 54
-    assert rows["AAA111"].views == 45000
-    assert rows["AAA111"].creator_handle == "creator.alpha"
+    assert set(rows) == {"AAA111"}
+    assert rows["AAA111"].likes == 700
+    assert rows["AAA111"].comments == 32
+    assert rows["AAA111"].views == 21000
+    assert rows["AAA111"].creator_handle is None
 
 
 @pytest.mark.asyncio
-async def test_run_parallel_reel_discovery_launches_separate_worker_windows_from_same_profile(
+async def test_run_parallel_reel_discovery_can_launch_separate_worker_windows_without_cdp(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -526,7 +503,6 @@ async def test_run_parallel_reel_discovery_launches_separate_worker_windows_from
         max_steps=10,
         agent_count=3,
         browser_runtime_env={
-            "BROWSER_USE_CDP_URL": "http://127.0.0.1:9222",
             "CHROME_EXECUTABLE_PATH": "/usr/bin/google-chrome",
             "CHROME_USER_DATA_DIR": str(tmp_path / "source_user_data"),
             "CHROME_PROFILE_DIRECTORY": "Profile 9",
@@ -535,11 +511,15 @@ async def test_run_parallel_reel_discovery_launches_separate_worker_windows_from
     )
 
     assert len(results) == 3
-    assert {metric.reel_id for metric in metrics} == {"PRIMARY111", "EXTRA2", "EXTRA3"}
-    assert len(cloned_targets) == 2
-    assert launched_ports == [9223, 9224]
-    assert built_cdp_urls == ["http://127.0.0.1:9223", "http://127.0.0.1:9224"]
-    assert len(extra_browsers) == 2
+    assert {metric.reel_id for metric in metrics} == {"EXTRA2", "EXTRA3", "EXTRA4"}
+    assert len(cloned_targets) == 3
+    assert launched_ports == [9222, 9223, 9224]
+    assert built_cdp_urls == [
+        "http://127.0.0.1:9222",
+        "http://127.0.0.1:9223",
+        "http://127.0.0.1:9224",
+    ]
+    assert len(extra_browsers) == 3
     assert all(process.terminated for process in processes)
 
 

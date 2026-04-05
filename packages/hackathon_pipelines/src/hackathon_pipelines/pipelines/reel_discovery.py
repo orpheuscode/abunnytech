@@ -45,7 +45,7 @@ from hackathon_pipelines.ports import (
 from hackathon_pipelines.stores.memory import new_id
 
 INSTAGRAM_REELS_FEED_URL = "https://www.instagram.com/reels/"
-DEFAULT_DISCOVERY_AGENT_COUNT = 3
+DEFAULT_DISCOVERY_AGENT_COUNT = 1
 MAX_DISCOVERY_AGENT_COUNT = 6
 
 

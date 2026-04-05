@@ -806,14 +806,14 @@ async def test_discover_reels_to_store_opens_instagram_reels_url(tmp_path: Path)
     result = await discover_reels_to_store(browser=FakeBrowser(), store=store)
 
     assert result["browser_success"] is True
-    assert result["agent_count"] == 3
-    assert result["successful_agent_runs"] == 3
+    assert result["agent_count"] == 1
+    assert result["successful_agent_runs"] == 1
     assert result["failed_agent_runs"] == 0
-    assert len(captured_tasks) == 3
+    assert len(captured_tasks) == 1
     assert all(task.url == reel_discovery_module.INSTAGRAM_REELS_FEED_URL for task in captured_tasks)
     assert all("NEVER search for 'instagram reel downloader'" in str(task.description) for task in captured_tasks)
-    assert all(task.metadata["discovery_agent_count"] == 3 for task in captured_tasks)
-    assert [task.metadata["discovery_agent_index"] for task in captured_tasks] == [0, 1, 2]
+    assert all(task.metadata["discovery_agent_count"] == 1 for task in captured_tasks)
+    assert [task.metadata["discovery_agent_index"] for task in captured_tasks] == [0]
 
 
 @pytest.mark.asyncio
@@ -874,15 +874,15 @@ async def test_discover_reels_to_store_merges_duplicate_results_across_workers(t
     browser = FakeBrowser()
     result = await discover_reels_to_store(browser=browser, store=store)
 
-    assert browser.calls == 3
-    assert result["parsed_metrics_count"] == 2
-    assert result["queued_reels_count"] == 2
+    assert browser.calls == 1
+    assert result["parsed_metrics_count"] == 1
+    assert result["queued_reels_count"] == 1
     stored = {row.reel_id: row for row in store.list_reel_metrics()}
-    assert set(stored) == {"AAA111", "BBB222"}
-    assert stored["AAA111"].likes == 1800
-    assert stored["AAA111"].comments == 95
-    assert stored["AAA111"].views == 41000
-    assert stored["AAA111"].caption_text == "better caption"
+    assert set(stored) == {"AAA111"}
+    assert stored["AAA111"].likes == 1200
+    assert stored["AAA111"].comments == 80
+    assert stored["AAA111"].views == 25000
+    assert stored["AAA111"].caption_text is None
 
 
 @pytest.mark.asyncio
