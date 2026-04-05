@@ -13,6 +13,10 @@ from pathlib import Path
 
 ENV_BROWSER_USE_CDP_URL = "BROWSER_USE_CDP_URL"
 ENV_BROWSER_USE_HEADLESS = "BROWSER_USE_HEADLESS"
+ENV_BROWSER_USE_USE_CLOUD = "BROWSER_USE_USE_CLOUD"
+ENV_BROWSER_USE_CLOUD_PROFILE_ID = "BROWSER_USE_CLOUD_PROFILE_ID"
+ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE = "BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE"
+ENV_BROWSER_USE_LOCAL_PROFILE_MODE = "BROWSER_USE_LOCAL_PROFILE_MODE"
 ENV_CHROME_EXECUTABLE_PATH = "CHROME_EXECUTABLE_PATH"
 ENV_CHROME_USER_DATA_DIR = "CHROME_USER_DATA_DIR"
 ENV_CHROME_PROFILE_DIRECTORY = "CHROME_PROFILE_DIRECTORY"
@@ -20,6 +24,10 @@ ENV_CHROME_PROFILE_DIRECTORY = "CHROME_PROFILE_DIRECTORY"
 BROWSER_RUNTIME_ENV_KEYS: tuple[str, ...] = (
     ENV_BROWSER_USE_CDP_URL,
     ENV_BROWSER_USE_HEADLESS,
+    ENV_BROWSER_USE_USE_CLOUD,
+    ENV_BROWSER_USE_CLOUD_PROFILE_ID,
+    ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE,
+    ENV_BROWSER_USE_LOCAL_PROFILE_MODE,
     ENV_CHROME_EXECUTABLE_PATH,
     ENV_CHROME_USER_DATA_DIR,
     ENV_CHROME_PROFILE_DIRECTORY,
@@ -110,26 +118,24 @@ def detect_local_chrome_profile_directory(user_data_dir: str | Path | None = Non
 
 
 def normalize_chrome_user_data_root(
-    user_data_dir: str | Path,
+    user_data_dir: str | Path | None,
+    *,
     profile_directory: str | None = None,
 ) -> str:
-    """Ensure *user_data_dir* is the Chrome **parent** ``User Data`` folder, not a profile subfolder.
-
-    If someone pastes ``.../User Data/Profile 3`` and profile is ``Profile 3``, Chrome must get
-    ``--user-data-dir=.../User Data`` and ``--profile-directory=Profile 3``. Using the full
-    profile path as *user-data-dir* creates a separate root and drops cookies (fresh login).
-    """
+    """Ensure Chrome gets the user-data root, not a nested profile directory."""
 
     raw = _clean(user_data_dir)
     if not raw:
-        return raw
-    root = Path(raw).expanduser()
+        return ""
+
+    path = Path(raw).expanduser()
     profile = _clean(profile_directory)
-    if not profile:
-        return os.path.normpath(str(root))
-    if root.name == profile or (os.name == "nt" and root.name.lower() == profile.lower()):
-        return os.path.normpath(str(root.parent))
-    return os.path.normpath(str(root))
+    if path.name == "Default" or path.name.startswith("Profile "):
+        path = path.parent
+    elif profile and path.name.lower() == profile.lower():
+        path = path.parent
+
+    return os.path.normpath(str(path))
 
 
 def resolve_local_chrome_profile_directory(
@@ -194,6 +200,9 @@ def has_browser_runtime_config(values: Mapping[str, str] | None) -> bool:
         return False
     if _pick(values, ENV_BROWSER_USE_CDP_URL):
         return True
+    use_cloud = _pick(values, ENV_BROWSER_USE_USE_CLOUD).lower() == "true"
+    if use_cloud or _pick(values, ENV_BROWSER_USE_CLOUD_PROFILE_ID):
+        return True
     return all(
         _pick(values, key)
         for key in (
@@ -225,12 +234,15 @@ def build_effective_browser_runtime_env(
         if value:
             effective[key] = value
 
+    if _pick(effective, ENV_BROWSER_USE_CLOUD_PROFILE_ID) and ENV_BROWSER_USE_USE_CLOUD not in effective:
+        effective[ENV_BROWSER_USE_USE_CLOUD] = "true"
+
     if not has_browser_runtime_config(effective):
         for key, value in detect_local_browser_runtime_env().items():
             if value and key not in effective:
                 effective[key] = value
 
-    if not effective.get(ENV_BROWSER_USE_CDP_URL):
+    if not effective.get(ENV_BROWSER_USE_CDP_URL) and effective.get(ENV_BROWSER_USE_USE_CLOUD, "").lower() != "true":
         detected_user_data_dir = (
             effective.get(ENV_CHROME_USER_DATA_DIR) or detect_local_chrome_user_data_dir()
         )
@@ -251,5 +263,9 @@ def build_effective_browser_runtime_env(
 
     if ENV_BROWSER_USE_HEADLESS not in effective:
         effective[ENV_BROWSER_USE_HEADLESS] = "false"
+    if ENV_BROWSER_USE_USE_CLOUD not in effective:
+        effective[ENV_BROWSER_USE_USE_CLOUD] = "false"
+    if ENV_BROWSER_USE_LOCAL_PROFILE_MODE not in effective:
+        effective[ENV_BROWSER_USE_LOCAL_PROFILE_MODE] = "managed_runtime"
 
     return effective

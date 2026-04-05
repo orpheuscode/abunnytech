@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import sqlite3
 import shutil
 import subprocess
+import tempfile
+import time
+import uuid
 from pathlib import Path
 
 import httpx
 
 DEFAULT_CHROME_PATH = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+_INSTAGRAM_SESSION_COOKIE_NAMES = frozenset({"sessionid", "ds_user_id"})
 
 
 async def wait_for_cdp(cdp_url: str, *, timeout_seconds: float = 20.0) -> bool:
@@ -28,6 +34,64 @@ async def wait_for_cdp(cdp_url: str, *, timeout_seconds: float = 20.0) -> bool:
     return False
 
 
+def _profile_cookie_db_candidates(user_data_dir: Path, profile_directory: str) -> list[Path]:
+    profile_root = user_data_dir / profile_directory
+    return [
+        profile_root / "Network" / "Cookies",
+        profile_root / "Cookies",
+    ]
+
+
+def _read_cookie_names(cookie_db_path: Path, *, host_fragment: str) -> set[str]:
+    if not cookie_db_path.exists():
+        return set()
+
+    temp_copy = Path(tempfile.gettempdir()) / f"abunnytech_cookies_{uuid.uuid4().hex}.sqlite"
+    try:
+        shutil.copy2(cookie_db_path, temp_copy)
+        conn = sqlite3.connect(temp_copy)
+        try:
+            rows = conn.execute(
+                "SELECT name FROM cookies WHERE host_key LIKE ?",
+                (f"%{host_fragment}%",),
+            ).fetchall()
+        finally:
+            conn.close()
+        return {str(row[0]) for row in rows}
+    except Exception:
+        return set()
+    finally:
+        try:
+            temp_copy.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def profile_has_instagram_session(user_data_dir: str | Path, profile_directory: str) -> bool:
+    """Return whether the profile currently holds Instagram auth session cookies."""
+
+    root = Path(user_data_dir)
+    cookie_names: set[str] = set()
+    for candidate in _profile_cookie_db_candidates(root, profile_directory):
+        cookie_names |= _read_cookie_names(candidate, host_fragment="instagram")
+    return _INSTAGRAM_SESSION_COOKIE_NAMES.issubset(cookie_names)
+
+
+def _rmtree_with_retries(path: Path, *, attempts: int = 5, delay_seconds: float = 0.2) -> None:
+    last_error: Exception | None = None
+    for _ in range(attempts):
+        try:
+            shutil.rmtree(path)
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(delay_seconds)
+    if last_error is not None:
+        raise last_error
+
+
 def ensure_profile_clone(
     *,
     source_user_data_dir: str | Path,
@@ -35,18 +99,24 @@ def ensure_profile_clone(
     target_user_data_dir: str | Path,
     refresh: bool = False,
 ) -> Path:
-    """Refresh a standalone Chrome user-data dir with one copied profile."""
+    """Bootstrap a standalone Chrome user-data dir with one copied profile.
+
+    When ``refresh`` is ``False``, an existing runtime profile is always
+    preserved so cookies and login state survive across relaunches. This keeps a
+    dedicated automation profile stable once the user logs into Instagram there.
+    """
 
     source_root = Path(source_user_data_dir)
     target_root = Path(target_user_data_dir)
     profile_source = source_root / profile_directory
+    profile_target = target_root / profile_directory
     if not profile_source.exists():
         raise FileNotFoundError(profile_source)
 
-    if target_root.exists() and not refresh:
+    if target_root.exists() and profile_target.exists() and not refresh:
         return target_root
     if target_root.exists():
-        shutil.rmtree(target_root)
+        _rmtree_with_retries(target_root)
     target_root.mkdir(parents=True, exist_ok=True)
 
     for file_name in ("Local State", "First Run"):
@@ -55,6 +125,23 @@ def ensure_profile_clone(
             shutil.copy2(source_file, target_root / file_name)
     shutil.copytree(profile_source, target_root / profile_directory)
     return target_root
+
+
+def close_all_chrome_processes(*, force: bool = True) -> None:
+    """Best-effort shutdown for local Chrome processes before direct-profile launch."""
+
+    if os.name == "nt":
+        args = ["taskkill", "/IM", "chrome.exe"]
+        if force:
+            args.insert(1, "/F")
+        subprocess.run(args, check=False, capture_output=True)
+        return
+
+    cmd = ["pkill"]
+    if force:
+        cmd.append("-9")
+    cmd.extend(["-f", "chrome"])
+    subprocess.run(cmd, check=False, capture_output=True)
 
 
 async def launch_local_debug_chrome(

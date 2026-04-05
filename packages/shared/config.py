@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     hackathon_loop_workdir: str = "data/loop_runner"
     browser_use_cdp_url: str = ""
     browser_use_headless: bool = False
+    browser_use_use_cloud: bool = False
+    browser_use_cloud_profile_id: str = ""
+    browser_use_cloud_proxy_country_code: str = ""
+    browser_use_local_profile_mode: str = "managed_runtime"
     chrome_executable_path: str = ""
     chrome_user_data_dir: str = ""
     chrome_profile_directory: str = ""

@@ -100,6 +100,10 @@ async def health() -> dict[str, Any]:
 
 class BrowserRuntimeRequest(BaseModel):
     cdp_url: str | None = None
+    use_cloud: bool | None = None
+    cloud_profile_id: str | None = None
+    cloud_proxy_country_code: str | None = None
+    local_profile_mode: str | None = None
     chrome_executable_path: str | None = None
     chrome_user_data_dir: str | None = None
     chrome_profile_directory: str | None = None
@@ -229,6 +233,14 @@ def _browser_runtime_env_from_request(
     env: dict[str, str] = {}
     if payload.get("cdp_url"):
         env["BROWSER_USE_CDP_URL"] = str(payload["cdp_url"])
+    if "use_cloud" in payload:
+        env["BROWSER_USE_USE_CLOUD"] = str(bool(payload["use_cloud"])).lower()
+    if payload.get("cloud_profile_id"):
+        env["BROWSER_USE_CLOUD_PROFILE_ID"] = str(payload["cloud_profile_id"])
+    if payload.get("cloud_proxy_country_code"):
+        env["BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE"] = str(payload["cloud_proxy_country_code"])
+    if payload.get("local_profile_mode"):
+        env["BROWSER_USE_LOCAL_PROFILE_MODE"] = str(payload["local_profile_mode"])
     if payload.get("chrome_executable_path"):
         env["CHROME_EXECUTABLE_PATH"] = str(payload["chrome_executable_path"])
     if payload.get("chrome_user_data_dir"):

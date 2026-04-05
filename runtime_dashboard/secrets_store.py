@@ -13,6 +13,10 @@ from pathlib import Path
 from packages.shared.browser_runtime_config import (
     ENV_BROWSER_USE_CDP_URL,
     ENV_BROWSER_USE_HEADLESS,
+    ENV_BROWSER_USE_CLOUD_PROFILE_ID,
+    ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE,
+    ENV_BROWSER_USE_LOCAL_PROFILE_MODE,
+    ENV_BROWSER_USE_USE_CLOUD,
     ENV_CHROME_EXECUTABLE_PATH,
     ENV_CHROME_PROFILE_DIRECTORY,
     ENV_CHROME_USER_DATA_DIR,
@@ -61,6 +65,10 @@ def to_environ_map(
     chrome_user_data_dir: str = "",
     chrome_profile_directory: str = "",
     browser_use_headless: str = "",
+    browser_use_use_cloud: str = "",
+    browser_use_cloud_profile_id: str = "",
+    browser_use_cloud_proxy_country_code: str = "",
+    browser_use_local_profile_mode: str = "",
 ) -> dict[str, str]:
     """Map UI fields to process environment variable names."""
     m: dict[str, str] = {}
@@ -80,6 +88,10 @@ def to_environ_map(
     chrome_user_data = chrome_user_data_dir.strip()
     chrome_profile = chrome_profile_directory.strip()
     headless = browser_use_headless.strip().lower()
+    use_cloud = browser_use_use_cloud.strip().lower()
+    cloud_profile_id = browser_use_cloud_profile_id.strip()
+    cloud_proxy_country_code = browser_use_cloud_proxy_country_code.strip()
+    local_profile_mode = browser_use_local_profile_mode.strip()
     if cdp:
         m[ENV_BROWSER_USE_CDP_URL] = cdp
     if chrome_path:
@@ -90,6 +102,14 @@ def to_environ_map(
         m[ENV_CHROME_PROFILE_DIRECTORY] = chrome_profile
     if headless in {"true", "false"}:
         m[ENV_BROWSER_USE_HEADLESS] = headless
+    if use_cloud in {"true", "false"}:
+        m[ENV_BROWSER_USE_USE_CLOUD] = use_cloud
+    if cloud_profile_id:
+        m[ENV_BROWSER_USE_CLOUD_PROFILE_ID] = cloud_profile_id
+    if cloud_proxy_country_code:
+        m[ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE] = cloud_proxy_country_code
+    if local_profile_mode:
+        m[ENV_BROWSER_USE_LOCAL_PROFILE_MODE] = local_profile_mode
     return m
 
 
@@ -111,6 +131,10 @@ def save_merged(
     chrome_user_data_dir: str = "",
     chrome_profile_directory: str = "",
     browser_use_headless: str = "",
+    browser_use_use_cloud: str = "",
+    browser_use_cloud_profile_id: str = "",
+    browser_use_cloud_proxy_country_code: str = "",
+    browser_use_local_profile_mode: str = "",
 ) -> dict[str, str]:
     """Non-empty form fields overwrite; empty fields keep the previous value on disk."""
     nxt = dict(read_raw())
@@ -123,6 +147,10 @@ def save_merged(
         chrome_user_data_dir=chrome_user_data_dir,
         chrome_profile_directory=chrome_profile_directory,
         browser_use_headless=browser_use_headless,
+        browser_use_use_cloud=browser_use_use_cloud,
+        browser_use_cloud_profile_id=browser_use_cloud_profile_id,
+        browser_use_cloud_proxy_country_code=browser_use_cloud_proxy_country_code,
+        browser_use_local_profile_mode=browser_use_local_profile_mode,
     )
     nxt.update(patch)
     _STORE_PATH.parent.mkdir(parents=True, exist_ok=True)

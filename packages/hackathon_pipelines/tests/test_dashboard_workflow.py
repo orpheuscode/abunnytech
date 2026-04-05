@@ -926,3 +926,35 @@ async def test_discover_reels_to_store_passes_browser_runtime_env_to_parallel_ru
         "CHROME_USER_DATA_DIR": "/tmp/profile-clone",
         "CHROME_PROFILE_DIRECTORY": "Profile 9",
     }
+
+
+@pytest.mark.asyncio
+async def test_discover_reels_to_store_uses_single_agent_for_live_cdp_runtime(tmp_path: Path) -> None:
+    store = SQLiteHackathonStore(tmp_path / "hackathon.sqlite3")
+    captured_tasks: list[object] = []
+
+    class FakeBrowser:
+        async def run_task(self, task):
+            captured_tasks.append(task)
+            return reel_discovery_module.AgentResult(
+                task_id="discover_live",
+                success=True,
+                provider=reel_discovery_module.ProviderType.BROWSER_USE,
+                output={"reels": []},
+                dry_run=False,
+            )
+
+    result = await discover_reels_to_store(
+        browser=FakeBrowser(),
+        store=store,
+        browser_runtime_env={
+            "BROWSER_USE_CDP_URL": "http://127.0.0.1:9222",
+            "CHROME_USER_DATA_DIR": "/tmp/profile",
+            "CHROME_PROFILE_DIRECTORY": "Profile 9",
+        },
+    )
+
+    assert result["agent_count"] == 1
+    assert result["successful_agent_runs"] == 1
+    assert len(captured_tasks) == 1
+    assert captured_tasks[0].metadata["discovery_agent_count"] == 1

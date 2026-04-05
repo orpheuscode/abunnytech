@@ -12,7 +12,11 @@ from browser_runtime.providers.browser_use import BrowserUseBrowserConfig, Brows
 from browser_runtime.providers.mock import MockProvider
 from packages.shared.browser_runtime_config import (
     ENV_BROWSER_USE_CDP_URL,
+    ENV_BROWSER_USE_CLOUD_PROFILE_ID,
+    ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE,
     ENV_BROWSER_USE_HEADLESS,
+    ENV_BROWSER_USE_LOCAL_PROFILE_MODE,
+    ENV_BROWSER_USE_USE_CLOUD,
     ENV_CHROME_EXECUTABLE_PATH,
     ENV_CHROME_PROFILE_DIRECTORY,
     ENV_CHROME_USER_DATA_DIR,
@@ -130,6 +134,10 @@ def _build_live_browser_provider(
         saved={
             ENV_BROWSER_USE_CDP_URL: settings.browser_use_cdp_url,
             ENV_BROWSER_USE_HEADLESS: str(settings.browser_use_headless).lower(),
+            ENV_BROWSER_USE_USE_CLOUD: str(settings.browser_use_use_cloud).lower(),
+            ENV_BROWSER_USE_CLOUD_PROFILE_ID: settings.browser_use_cloud_profile_id,
+            ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE: settings.browser_use_cloud_proxy_country_code,
+            ENV_BROWSER_USE_LOCAL_PROFILE_MODE: settings.browser_use_local_profile_mode,
             ENV_CHROME_EXECUTABLE_PATH: settings.chrome_executable_path,
             ENV_CHROME_USER_DATA_DIR: settings.chrome_user_data_dir,
             ENV_CHROME_PROFILE_DIRECTORY: settings.chrome_profile_directory,
@@ -138,8 +146,10 @@ def _build_live_browser_provider(
     )
     extra_kwargs: dict[str, object] = {}
     use_cdp = bool(runtime_env.get(ENV_BROWSER_USE_CDP_URL))
+    use_cloud = str(runtime_env.get(ENV_BROWSER_USE_USE_CLOUD, "false")).lower() == "true"
     if (
         not use_cdp
+        and not use_cloud
         and runtime_env.get(ENV_CHROME_EXECUTABLE_PATH)
         and runtime_env.get(ENV_CHROME_USER_DATA_DIR)
         and runtime_env.get(ENV_CHROME_PROFILE_DIRECTORY)
@@ -148,16 +158,20 @@ def _build_live_browser_provider(
         extra_kwargs["enable_default_extensions"] = False
     browser_config = BrowserUseBrowserConfig(
         cdp_url=runtime_env.get(ENV_BROWSER_USE_CDP_URL) or None,
+        use_cloud=use_cloud or None,
         headless=(runtime_env.get(ENV_BROWSER_USE_HEADLESS, "false").lower() == "true"),
-        executable_path=None if use_cdp else runtime_env.get(ENV_CHROME_EXECUTABLE_PATH) or None,
-        user_data_dir=None if use_cdp else runtime_env.get(ENV_CHROME_USER_DATA_DIR) or None,
-        profile_directory=None if use_cdp else runtime_env.get(ENV_CHROME_PROFILE_DIRECTORY) or None,
+        executable_path=None if use_cdp or use_cloud else runtime_env.get(ENV_CHROME_EXECUTABLE_PATH) or None,
+        user_data_dir=None if use_cdp or use_cloud else runtime_env.get(ENV_CHROME_USER_DATA_DIR) or None,
+        profile_directory=None if use_cdp or use_cloud else runtime_env.get(ENV_CHROME_PROFILE_DIRECTORY) or None,
+        cloud_profile_id=runtime_env.get(ENV_BROWSER_USE_CLOUD_PROFILE_ID) or None,
+        cloud_proxy_country_code=runtime_env.get(ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE) or None,
         keep_alive=True,
         extra_kwargs=extra_kwargs,
     )
     if not browser_config.to_browser_kwargs():
         msg = (
-            "Live Browser Use requires BROWSER_USE_CDP_URL or "
+            "Live Browser Use requires BROWSER_USE_CDP_URL, Browser Use Cloud "
+            "(BROWSER_USE_USE_CLOUD / BROWSER_USE_CLOUD_PROFILE_ID), or "
             "CHROME_EXECUTABLE_PATH + CHROME_USER_DATA_DIR + CHROME_PROFILE_DIRECTORY. "
             "Set them in the environment or Dashboard Runtime Setup."
         )

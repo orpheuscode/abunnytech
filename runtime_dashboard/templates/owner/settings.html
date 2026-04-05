@@ -10,7 +10,7 @@
   <p class="muted">Browser Use — sets <code>BROWSER_USE_API_KEY</code> for the default <code>ChatBrowserUse</code> browser automation model.</p>
   <p class="muted">Gemini / Google — sets <code>GOOGLE_API_KEY</code> and <code>GEMINI_API_KEY</code>.</p>
   <p class="muted">Twelve Labs — sets <code>TWELVE_LABS_API_KEY</code> and <code>TWELVELABS_API_KEY</code>.</p>
-  <p class="muted">Browser runtime — supports <code>BROWSER_USE_CDP_URL</code> or local Chrome via <code>CHROME_EXECUTABLE_PATH</code>, <code>CHROME_USER_DATA_DIR</code>, and <code>CHROME_PROFILE_DIRECTORY</code>.</p>
+  <p class="muted">Browser runtime — supports <code>BROWSER_USE_CDP_URL</code>, Browser Use Cloud profiles, or local Chrome via <code>CHROME_EXECUTABLE_PATH</code>, <code>CHROME_USER_DATA_DIR</code>, and <code>CHROME_PROFILE_DIRECTORY</code>.</p>
 </div>
 
 <div class="card" style="max-width: 520px;">
@@ -43,6 +43,21 @@
   <input type="text" name="browser_use_cdp_url" value="{{ browser_use_cdp_url }}" placeholder="http://127.0.0.1:9222"
     style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
 
+  <label class="muted">Browser runtime mode</label>
+  <select name="browser_use_use_cloud"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+    <option value="false" {{ 'selected' if browser_use_use_cloud == 'false' else '' }}>Local Chrome runtime</option>
+    <option value="true" {{ 'selected' if browser_use_use_cloud == 'true' else '' }}>Browser Use Cloud profile</option>
+  </select>
+
+  <label class="muted">Browser Use Cloud profile ID</label>
+  <input type="text" name="browser_use_cloud_profile_id" value="{{ browser_use_cloud_profile_id }}" placeholder="profile UUID"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+
+  <label class="muted">Browser Use Cloud proxy country</label>
+  <input type="text" name="browser_use_cloud_proxy_country_code" value="{{ browser_use_cloud_proxy_country_code }}" placeholder="us"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+
   <label class="muted">Chrome executable path</label>
   <input type="text" name="chrome_executable_path" value="{{ chrome_executable_path }}" placeholder="/usr/bin/google-chrome"
     style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
@@ -56,6 +71,13 @@
     style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
   <p class="muted" style="margin:-0.5rem 0 1rem;">Use the <strong>parent</strong> Chrome folder (e.g. Windows: <code>%LOCALAPPDATA%\Google\Chrome\User Data</code>), <em>not</em> <code>…\User Data\Profile 3</code>. Put <code>Profile 3</code> in the field below. If you paste the full profile path, the dashboard trims it automatically. <strong>Close all Chrome windows</strong> before “Launch Local Chrome” so this profile is not locked.</p>
 
+  <label class="muted">Local profile strategy</label>
+  <select name="browser_use_local_profile_mode"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+    <option value="managed_runtime" {{ 'selected' if browser_use_local_profile_mode == 'managed_runtime' else '' }}>Dedicated persistent managed runtime (recommended)</option>
+    <option value="direct_profile" {{ 'selected' if browser_use_local_profile_mode == 'direct_profile' else '' }}>Direct real Chrome profile</option>
+  </select>
+
   <label class="muted">Browser window mode</label>
   <select name="browser_use_headless"
     style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
@@ -67,6 +89,6 @@
     <button type="submit" class="btn">Save runtime setup</button>
     <button type="submit" class="btn" formaction="{{ url_for('launch_local_browser') }}" formmethod="post">Launch Local Chrome + Save CDP</button>
   </div>
-  <p class="muted" style="margin:0.75rem 0 0;">Launch opens your real Chrome profile with remote debugging (no copy). The launch action uses the values in this form; on success the dashboard saves <code>BROWSER_USE_CDP_URL</code>.</p>
+  <p class="muted" style="margin:0.75rem 0 0;">Local launch uses the values in this form and saves <code>BROWSER_USE_CDP_URL</code> on success. Managed runtime mode boots a dedicated persistent automation profile once and keeps reusing it. Direct profile mode closes Chrome first, then opens the real selected profile directly. Browser Use Cloud mode skips local launch and uses your saved cloud profile settings instead.</p>
 </form>
 {% endblock %}

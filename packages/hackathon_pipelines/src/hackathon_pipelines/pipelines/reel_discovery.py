@@ -339,6 +339,11 @@ async def run_parallel_reel_discovery(
     browser_runtime_env: Mapping[str, str] | None = None,
 ) -> tuple[list[ReelSurfaceMetrics], list[AgentResult]]:
     resolved_agent_count = _resolved_discovery_agent_count(agent_count)
+    runtime_env = browser_runtime_env or {}
+    if str(runtime_env.get(ENV_BROWSER_USE_CDP_URL) or "").strip():
+        # Local authenticated CDP sessions are much more reliable than spawning
+        # extra cloned Chrome workers, which can lose Instagram auth state.
+        resolved_agent_count = 1
     parser = metrics_parser or _parse_reels_from_agent
     tasks = [
         build_reel_discovery_agent_task(

@@ -24,6 +24,7 @@ from flask import (
     Flask,
     abort,
     flash,
+    has_app_context,
     redirect,
     render_template,
     request,
@@ -31,12 +32,22 @@ from flask import (
     session,
     url_for,
 )
-from integration.local_instagram_browser import launch_local_debug_chrome, wait_for_cdp
+from integration.local_instagram_browser import (
+    close_all_chrome_processes,
+    ensure_profile_clone,
+    launch_local_debug_chrome,
+    profile_has_instagram_session,
+    wait_for_cdp,
+)
 from werkzeug.utils import secure_filename
 
 from packages.shared.browser_runtime_config import (
     ENV_BROWSER_USE_CDP_URL,
+    ENV_BROWSER_USE_CLOUD_PROFILE_ID,
+    ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE,
     ENV_BROWSER_USE_HEADLESS,
+    ENV_BROWSER_USE_LOCAL_PROFILE_MODE,
+    ENV_BROWSER_USE_USE_CLOUD,
     ENV_CHROME_EXECUTABLE_PATH,
     ENV_CHROME_PROFILE_DIRECTORY,
     ENV_CHROME_USER_DATA_DIR,
@@ -81,6 +92,7 @@ _UPLOAD_DIR = Path(_ROOT) / "static" / "uploads"
 _AVATAR_SUBDIR = "avatars"
 _PRODUCT_SUBDIR = "products"
 _ALLOWED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+_DASHBOARD_BROWSER_RUNTIME_DIR = Path(_ROOT).resolve().parent / "data" / "dashboard_chrome_runtime"
 _DEFAULT_DASHBOARD_CDP_PORT = 9222
 
 NAV_PAGES: list[tuple[str, str]] = [
@@ -108,6 +120,20 @@ PIPELINE_STAGES: list[tuple[str, str, str, str]] = [
 ]
 
 GUIDED_TOTAL = 8
+
+
+def _normalized_path_value(value: str | None) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return os.path.normcase(os.path.normpath(text))
+
+
+def _normalized_local_profile_mode(value: str | None) -> str:
+    raw = str(value or "").strip().lower()
+    if raw == "direct_profile":
+        return "direct_profile"
+    return "managed_runtime"
 
 
 def _service_alive(base_url: str, path: str = "/health") -> bool:
@@ -335,6 +361,10 @@ def _browser_runtime_state() -> dict[str, Any]:
         for key in (
             ENV_BROWSER_USE_CDP_URL,
             ENV_BROWSER_USE_HEADLESS,
+            ENV_BROWSER_USE_USE_CLOUD,
+            ENV_BROWSER_USE_CLOUD_PROFILE_ID,
+            ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE,
+            ENV_BROWSER_USE_LOCAL_PROFILE_MODE,
             ENV_CHROME_EXECUTABLE_PATH,
             ENV_CHROME_USER_DATA_DIR,
             ENV_CHROME_PROFILE_DIRECTORY,
@@ -346,6 +376,10 @@ def _browser_runtime_state() -> dict[str, Any]:
         for key in (
             ENV_BROWSER_USE_CDP_URL,
             ENV_BROWSER_USE_HEADLESS,
+            ENV_BROWSER_USE_USE_CLOUD,
+            ENV_BROWSER_USE_CLOUD_PROFILE_ID,
+            ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE,
+            ENV_BROWSER_USE_LOCAL_PROFILE_MODE,
             ENV_CHROME_EXECUTABLE_PATH,
             ENV_CHROME_USER_DATA_DIR,
             ENV_CHROME_PROFILE_DIRECTORY,
@@ -370,16 +404,58 @@ def _browser_runtime_state() -> dict[str, Any]:
         source = "missing"
 
     headless = str(effective.get(ENV_BROWSER_USE_HEADLESS, "false")).lower() == "true"
+    use_cloud = str(effective.get(ENV_BROWSER_USE_USE_CLOUD, "false")).lower() == "true"
+    local_profile_mode = _normalized_local_profile_mode(
+        effective.get(ENV_BROWSER_USE_LOCAL_PROFILE_MODE)
+    )
+    if use_cloud:
+        mode_label = "Browser Use Cloud"
+    elif headless:
+        mode_label = "headless"
+    elif local_profile_mode == "direct_profile":
+        mode_label = "visible browser (direct Chrome profile)"
+    else:
+        mode_label = "visible browser (managed runtime profile)"
     return {
         "ready": has_browser_runtime_config(effective),
         "source": source,
-        "mode_label": "headless" if headless else "visible browser",
+        "mode_label": mode_label,
         "cdp_url": effective.get(ENV_BROWSER_USE_CDP_URL) or "",
+        "use_cloud": use_cloud,
+        "cloud_profile_id": effective.get(ENV_BROWSER_USE_CLOUD_PROFILE_ID) or "",
+        "cloud_proxy_country_code": effective.get(ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE) or "",
+        "local_profile_mode": local_profile_mode,
         "chrome_executable_path": effective.get(ENV_CHROME_EXECUTABLE_PATH) or "",
         "chrome_user_data_dir": effective.get(ENV_CHROME_USER_DATA_DIR) or "",
         "chrome_profile_directory": effective.get(ENV_CHROME_PROFILE_DIRECTORY) or "",
         "headless": headless,
     }
+
+
+def _resolved_browser_runtime_state() -> dict[str, Any]:
+    """Return browser runtime state with backward-compatible defaults.
+
+    Many tests monkeypatch `_browser_runtime_state()` with partial dictionaries.
+    Normalizing here lets the dashboard keep working while newer runtime fields
+    are introduced incrementally.
+    """
+
+    state = dict(_browser_runtime_state())
+    state.setdefault("ready", False)
+    state.setdefault("source", "missing")
+    state.setdefault("cdp_url", "")
+    state.setdefault("chrome_executable_path", "")
+    state.setdefault("chrome_user_data_dir", "")
+    state.setdefault("chrome_profile_directory", "")
+    state.setdefault("headless", False)
+    state["use_cloud"] = bool(state.get("use_cloud", False))
+    state["cloud_profile_id"] = str(state.get("cloud_profile_id") or "")
+    state["cloud_proxy_country_code"] = str(state.get("cloud_proxy_country_code") or "")
+    state["local_profile_mode"] = _normalized_local_profile_mode(
+        state.get("local_profile_mode")
+    )
+    state.setdefault("mode_label", "headless" if state["headless"] else "visible browser")
+    return state
 
 
 def _normalize_browser_runtime_form_data(form: Any) -> dict[str, str]:
@@ -397,9 +473,22 @@ def _normalize_browser_runtime_form_data(form: Any) -> dict[str, str]:
         chrome_user_data_dir,
         profile_directory=resolved_profile,
     )
+    browser_use_use_cloud = str(form.get("browser_use_use_cloud", "") or "").strip().lower()
+    if browser_use_use_cloud not in {"true", "false"}:
+        browser_use_use_cloud = "false"
 
     return {
         "browser_use_cdp_url": str(form.get("browser_use_cdp_url", "") or "").strip(),
+        "browser_use_use_cloud": browser_use_use_cloud,
+        "browser_use_cloud_profile_id": str(
+            form.get("browser_use_cloud_profile_id", "") or ""
+        ).strip(),
+        "browser_use_cloud_proxy_country_code": str(
+            form.get("browser_use_cloud_proxy_country_code", "") or ""
+        ).strip(),
+        "browser_use_local_profile_mode": _normalized_local_profile_mode(
+            form.get("browser_use_local_profile_mode")
+        ),
         "chrome_executable_path": str(form.get("chrome_executable_path", "") or "").strip(),
         "chrome_user_data_dir": chrome_user_data_dir,
         "chrome_profile_directory": resolved_profile,
@@ -408,12 +497,32 @@ def _normalize_browser_runtime_form_data(form: Any) -> dict[str, str]:
 
 
 def _browser_runtime_payload_for_control_plane() -> dict[str, Any] | None:
-    browser_runtime = _browser_runtime_state()
+    browser_runtime = _resolved_browser_runtime_state()
     if not browser_runtime["ready"]:
         return None
+    use_cloud = bool(browser_runtime.get("use_cloud"))
+    local_profile_mode = _normalized_local_profile_mode(
+        browser_runtime.get("local_profile_mode")
+    )
+    if use_cloud:
+        return {
+            "cdp_url": None,
+            "use_cloud": True,
+            "cloud_profile_id": browser_runtime.get("cloud_profile_id") or None,
+            "cloud_proxy_country_code": browser_runtime.get("cloud_proxy_country_code") or None,
+            "local_profile_mode": local_profile_mode,
+            "chrome_executable_path": None,
+            "chrome_user_data_dir": None,
+            "chrome_profile_directory": None,
+            "headless": bool(browser_runtime["headless"]),
+        }
     cdp_url = str(browser_runtime["cdp_url"] or "").strip()
     chrome_user_data_dir = str(browser_runtime["chrome_user_data_dir"] or "").strip()
     chrome_profile_directory = str(browser_runtime["chrome_profile_directory"] or "").strip()
+    if local_profile_mode == "managed_runtime" and chrome_profile_directory:
+        clone_dir = _runtime_clone_dir(chrome_profile_directory)
+        if clone_dir.is_dir():
+            chrome_user_data_dir = str(clone_dir)
     chrome_payload_ready = bool(
         browser_runtime["chrome_executable_path"]
         and chrome_user_data_dir
@@ -428,6 +537,10 @@ def _browser_runtime_payload_for_control_plane() -> dict[str, Any] | None:
         if cdp_ok:
             return {
                 "cdp_url": cdp_url,
+                "use_cloud": False,
+                "cloud_profile_id": None,
+                "cloud_proxy_country_code": None,
+                "local_profile_mode": local_profile_mode,
                 "chrome_executable_path": browser_runtime["chrome_executable_path"] or None,
                 "chrome_user_data_dir": chrome_user_data_dir or None,
                 "chrome_profile_directory": chrome_profile_directory or None,
@@ -435,6 +548,10 @@ def _browser_runtime_payload_for_control_plane() -> dict[str, Any] | None:
             }
         if chrome_payload_ready:
             return {
+                "use_cloud": False,
+                "cloud_profile_id": None,
+                "cloud_proxy_country_code": None,
+                "local_profile_mode": local_profile_mode,
                 "chrome_executable_path": browser_runtime["chrome_executable_path"],
                 "chrome_user_data_dir": chrome_user_data_dir,
                 "chrome_profile_directory": chrome_profile_directory,
@@ -442,6 +559,10 @@ def _browser_runtime_payload_for_control_plane() -> dict[str, Any] | None:
             }
     return {
         "cdp_url": None,
+        "use_cloud": False,
+        "cloud_profile_id": None,
+        "cloud_proxy_country_code": None,
+        "local_profile_mode": local_profile_mode,
         "chrome_executable_path": browser_runtime["chrome_executable_path"] or None,
         "chrome_user_data_dir": chrome_user_data_dir or None,
         "chrome_profile_directory": chrome_profile_directory or None,
@@ -457,6 +578,11 @@ def _current_local_debug_chrome_process(app: Flask) -> subprocess.Popen[Any] | N
         app.extensions["local_debug_chrome_process"] = None
         return None
     return process
+
+
+def _runtime_clone_dir(profile_directory: str) -> Path:
+    slug = profile_directory.strip().replace(os.sep, "_").replace(" ", "_") or "default"
+    return _DASHBOARD_BROWSER_RUNTIME_DIR / slug
 
 
 def _cdp_port_from_runtime_state(browser_runtime: dict[str, Any]) -> int:
@@ -667,13 +793,19 @@ def _file_path_to_static_url(path_str: str | None) -> str | None:
 
 def _readiness_state() -> list[tuple[str, bool, str]]:
     raw = read_raw()
-    browser_runtime = _browser_runtime_state()
+    browser_runtime = _resolved_browser_runtime_state()
     browser_ready = bool(
         raw.get(ENV_BROWSER_USE_PRIMARY) or os.environ.get(ENV_BROWSER_USE_PRIMARY)
     )
     gemini_ready = bool(raw.get(ENV_GEMINI_PRIMARY) or os.environ.get(ENV_GEMINI_PRIMARY))
     twelve_ready = bool(raw.get(ENV_TWELVE_PRIMARY) or os.environ.get(ENV_TWELVE_PRIMARY))
-    if browser_runtime["cdp_url"]:
+    if browser_runtime["use_cloud"]:
+        chrome_detail = (
+            "Browser Use Cloud"
+            if not browser_runtime["cloud_profile_id"]
+            else f"Browser Use Cloud [{browser_runtime['cloud_profile_id']}]"
+        )
+    elif browser_runtime["cdp_url"]:
         chrome_detail = f"{browser_runtime['source']}: {browser_runtime['cdp_url']}"
     elif browser_runtime["ready"]:
         chrome_detail = (
@@ -913,7 +1045,7 @@ def create_app() -> Flask:
             return redirect(url_for("settings"))
 
         raw = read_raw()
-        browser_runtime = _browser_runtime_state()
+        browser_runtime = _resolved_browser_runtime_state()
         ctx = {
             **_nav_context("settings"),
             "page_title": "Runtime setup",
@@ -925,12 +1057,20 @@ def create_app() -> Flask:
                 for key in (
                     ENV_BROWSER_USE_CDP_URL,
                     ENV_BROWSER_USE_HEADLESS,
+                    ENV_BROWSER_USE_USE_CLOUD,
+                    ENV_BROWSER_USE_CLOUD_PROFILE_ID,
+                    ENV_BROWSER_USE_CLOUD_PROXY_COUNTRY_CODE,
+                    ENV_BROWSER_USE_LOCAL_PROFILE_MODE,
                     ENV_CHROME_EXECUTABLE_PATH,
                     ENV_CHROME_USER_DATA_DIR,
                     ENV_CHROME_PROFILE_DIRECTORY,
                 )
             ),
             "browser_use_cdp_url": browser_runtime["cdp_url"],
+            "browser_use_use_cloud": "true" if browser_runtime["use_cloud"] else "false",
+            "browser_use_cloud_profile_id": browser_runtime["cloud_profile_id"],
+            "browser_use_cloud_proxy_country_code": browser_runtime["cloud_proxy_country_code"],
+            "browser_use_local_profile_mode": browser_runtime["local_profile_mode"],
             "chrome_executable_path": browser_runtime["chrome_executable_path"],
             "chrome_user_data_dir": browser_runtime["chrome_user_data_dir"],
             "chrome_profile_directory": browser_runtime["chrome_profile_directory"],
@@ -943,12 +1083,27 @@ def create_app() -> Flask:
     @app.post("/settings/launch-local-browser")
     def launch_local_browser() -> Any:
         runtime_fields = _normalize_browser_runtime_form_data(request.form)
+        if runtime_fields["browser_use_use_cloud"] == "true":
+            save_merged(
+                browser_use_api_key="",
+                gemini="",
+                twelvelabs="",
+                **runtime_fields,
+            )
+            flash(
+                "Browser Use Cloud mode is enabled. Local Chrome was not launched. "
+                "Use your saved Browser Use Cloud profile ID for authenticated runs."
+            )
+            return redirect(url_for("settings"))
         chrome_path = (
             runtime_fields["chrome_executable_path"]
-            or _browser_runtime_state()["chrome_executable_path"]
+            or _resolved_browser_runtime_state()["chrome_executable_path"]
         )
         chrome_user_data_dir = runtime_fields["chrome_user_data_dir"]
         chrome_profile_directory = runtime_fields["chrome_profile_directory"]
+        local_profile_mode = _normalized_local_profile_mode(
+            runtime_fields["browser_use_local_profile_mode"]
+        )
 
         if not chrome_path:
             flash("Chrome executable path is missing. Save runtime setup first.")
@@ -960,9 +1115,44 @@ def create_app() -> Flask:
             flash("Chrome profile could not be resolved. Type a profile name such as 'Profile 9'.")
             return redirect(url_for("settings"))
 
-        browser_runtime = _browser_runtime_state()
+        browser_runtime = _resolved_browser_runtime_state()
         preferred_port = _cdp_port_from_runtime_state(browser_runtime)
         managed_process = _current_local_debug_chrome_process(app)
+        current_cdp_url = str(browser_runtime.get("cdp_url") or "").strip()
+        current_user_data_dir = normalize_chrome_user_data_root(
+            str(browser_runtime.get("chrome_user_data_dir") or "").strip(),
+            profile_directory=str(browser_runtime.get("chrome_profile_directory") or "").strip(),
+        )
+        current_matches_requested = (
+            _normalized_path_value(browser_runtime.get("chrome_executable_path")) == _normalized_path_value(chrome_path)
+            and _normalized_path_value(current_user_data_dir) == _normalized_path_value(chrome_user_data_dir)
+            and str(browser_runtime.get("chrome_profile_directory") or "").strip().lower()
+            == chrome_profile_directory.lower()
+        )
+        if managed_process is not None and current_cdp_url and current_matches_requested:
+            try:
+                if asyncio.run(wait_for_cdp(current_cdp_url, timeout_seconds=1.0)):
+                    save_merged(
+                        browser_use_api_key="",
+                        gemini="",
+                        twelvelabs="",
+                        browser_use_use_cloud="false",
+                        browser_use_cloud_profile_id=runtime_fields["browser_use_cloud_profile_id"],
+                        browser_use_cloud_proxy_country_code=runtime_fields["browser_use_cloud_proxy_country_code"],
+                        browser_use_local_profile_mode=local_profile_mode,
+                        browser_use_cdp_url=current_cdp_url,
+                        chrome_executable_path=chrome_path,
+                        chrome_user_data_dir=chrome_user_data_dir,
+                        chrome_profile_directory=chrome_profile_directory,
+                        browser_use_headless="false",
+                    )
+                    flash(
+                        f"Chrome for {chrome_profile_directory} is already running. "
+                        f"Reusing existing browser at {current_cdp_url}."
+                    )
+                    return redirect(url_for("settings"))
+            except RuntimeError:
+                pass
         if managed_process is not None:
             managed_process.terminate()
             app.extensions["local_debug_chrome_process"] = None
@@ -971,10 +1161,23 @@ def create_app() -> Flask:
             cdp_port = _next_available_cdp_port(preferred_port)
 
         try:
+            runtime_user_data_dir: str | Path
+            if local_profile_mode == "direct_profile":
+                close_all_chrome_processes(force=True)
+                runtime_user_data_dir = chrome_user_data_dir
+            else:
+                runtime_clone_dir = _runtime_clone_dir(chrome_profile_directory)
+                ensure_profile_clone(
+                    source_user_data_dir=chrome_user_data_dir,
+                    profile_directory=chrome_profile_directory,
+                    target_user_data_dir=runtime_clone_dir,
+                    refresh=False,
+                )
+                runtime_user_data_dir = runtime_clone_dir
             process, launched_cdp_url = asyncio.run(
                 launch_local_debug_chrome(
                     cdp_port=cdp_port,
-                    user_data_dir=chrome_user_data_dir,
+                    user_data_dir=runtime_user_data_dir,
                     profile_directory=chrome_profile_directory,
                     chrome_path=chrome_path,
                     start_url="https://www.instagram.com/",
@@ -988,21 +1191,48 @@ def create_app() -> Flask:
             return redirect(url_for("settings"))
 
         app.extensions["local_debug_chrome_process"] = process
+        source_has_instagram = profile_has_instagram_session(
+            chrome_user_data_dir,
+            chrome_profile_directory,
+        )
+        runtime_has_instagram = profile_has_instagram_session(runtime_user_data_dir, chrome_profile_directory)
 
         save_merged(
             browser_use_api_key="",
             gemini="",
             twelvelabs="",
+            browser_use_use_cloud="false",
+            browser_use_cloud_profile_id=runtime_fields["browser_use_cloud_profile_id"],
+            browser_use_cloud_proxy_country_code=runtime_fields["browser_use_cloud_proxy_country_code"],
+            browser_use_local_profile_mode=local_profile_mode,
             browser_use_cdp_url=launched_cdp_url,
             chrome_executable_path=chrome_path,
             chrome_user_data_dir=chrome_user_data_dir,
             chrome_profile_directory=chrome_profile_directory,
             browser_use_headless="false",
         )
-        flash(
-            f"Launched Chrome for {chrome_profile_directory}. "
-            f"CDP is available at {launched_cdp_url}."
-        )
+        if local_profile_mode == "direct_profile":
+            flash(
+                f"Launched Chrome for {chrome_profile_directory} using the real source profile. "
+                f"All Chrome processes were closed first. CDP is available at {launched_cdp_url}."
+            )
+        else:
+            flash(
+                f"Launched Chrome for {chrome_profile_directory}. "
+                f"Using managed runtime profile at {runtime_user_data_dir}. "
+                f"CDP is available at {launched_cdp_url}."
+            )
+        if not runtime_has_instagram:
+            if local_profile_mode == "managed_runtime":
+                flash(
+                    "No Instagram login was found in the managed runtime profile. "
+                    "Log into Instagram once in this exact launched browser and reuse that same runtime profile afterward."
+                )
+            elif not source_has_instagram:
+                flash(
+                    "No Instagram login was found in the real source profile. "
+                    "Log into Instagram there first or switch to the managed runtime strategy."
+                )
         return redirect(url_for("settings"))
 
     @app.route("/demo/dry-run", methods=["POST"])
@@ -1017,7 +1247,7 @@ def create_app() -> Flask:
         api = _api_base()
         product_context = _latest_product_context(api)
         identities = _identities_for_page(api)
-        browser_runtime = _browser_runtime_state()
+        browser_runtime = _resolved_browser_runtime_state()
         run_mode = _normalize_demo_run_mode(
             request.form.get("run_mode"),
             browser_runtime_ready=bool(browser_runtime["ready"]),
@@ -1056,7 +1286,7 @@ def create_app() -> Flask:
         api = _api_base()
         product_context = _latest_product_context(api)
         identities = _identities_for_page(api)
-        browser_runtime = _browser_runtime_state()
+        browser_runtime = _resolved_browser_runtime_state()
         run_mode = _normalize_demo_run_mode(
             request.form.get("run_mode"),
             browser_runtime_ready=bool(browser_runtime["ready"]),
@@ -1132,7 +1362,7 @@ def create_app() -> Flask:
         api = _api_base()
         product_context = _latest_product_context(api)
         identities = _identities_for_page(api)
-        browser_runtime = _browser_runtime_state()
+        browser_runtime = _resolved_browser_runtime_state()
         run_mode = _normalize_demo_run_mode(
             request.form.get("run_mode"),
             browser_runtime_ready=bool(browser_runtime["ready"]),
@@ -1174,7 +1404,7 @@ def create_app() -> Flask:
                 "and feed analytics back into the template store."
             )
         ).strip()
-        browser_runtime = _browser_runtime_state()
+        browser_runtime = _resolved_browser_runtime_state()
         run_mode = _normalize_demo_run_mode(
             request.form.get("run_mode"),
             browser_runtime_ready=bool(browser_runtime["ready"]),
@@ -1202,7 +1432,7 @@ def create_app() -> Flask:
 
     @app.post("/demo/start-loop")
     def demo_start_loop() -> Any:
-        browser_runtime = _browser_runtime_state()
+        browser_runtime = _resolved_browser_runtime_state()
         run_mode = _normalize_demo_run_mode(
             request.form.get("run_mode"),
             browser_runtime_ready=bool(browser_runtime["ready"]),
@@ -1523,7 +1753,7 @@ def _render_demo(api: str | None) -> Any:
     blueprints = _video_blueprints_for_page(api)
     packages = _content_packages_for_page(api)
     records = _distribution_records_for_page(api)
-    browser_runtime = _browser_runtime_state()
+    browser_runtime = _resolved_browser_runtime_state()
     demo_run_mode = _normalize_demo_run_mode(
         session.get("demo_run_mode"),
         browser_runtime_ready=bool(browser_runtime["ready"]),
