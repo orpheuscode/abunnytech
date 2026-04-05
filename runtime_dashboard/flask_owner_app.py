@@ -25,7 +25,6 @@ from flask import (
     abort,
     current_app,
     flash,
-    has_app_context,
     redirect,
     render_template,
     request,
@@ -33,11 +32,7 @@ from flask import (
     session,
     url_for,
 )
-from integration.local_instagram_browser import (
-    ensure_profile_clone,
-    launch_local_debug_chrome,
-    wait_for_cdp,
-)
+from integration.local_instagram_browser import launch_local_debug_chrome, wait_for_cdp
 from werkzeug.utils import secure_filename
 
 from packages.shared.browser_runtime_config import (
@@ -49,6 +44,7 @@ from packages.shared.browser_runtime_config import (
     build_effective_browser_runtime_env,
     detect_local_chrome_user_data_dir,
     has_browser_runtime_config,
+    normalize_chrome_user_data_root,
     resolve_local_chrome_profile_directory,
 )
 from runtime_dashboard.data_loader import (
@@ -85,7 +81,6 @@ _UPLOAD_DIR = Path(_ROOT) / "static" / "uploads"
 _AVATAR_SUBDIR = "avatars"
 _PRODUCT_SUBDIR = "products"
 _ALLOWED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
-_DASHBOARD_BROWSER_RUNTIME_DIR = Path(_ROOT).resolve().parent / "data" / "dashboard_chrome_runtime"
 _DEFAULT_DASHBOARD_CDP_PORT = 9222
 
 NAV_PAGES: list[tuple[str, str]] = [
@@ -397,12 +392,17 @@ def _normalize_browser_runtime_form_data(form: Any) -> dict[str, str]:
         chrome_profile_query,
         user_data_dir=chrome_user_data_dir or None,
     )
+    resolved_profile = chrome_profile_directory or chrome_profile_query
+    chrome_user_data_dir = normalize_chrome_user_data_root(
+        chrome_user_data_dir,
+        profile_directory=resolved_profile,
+    )
 
     return {
         "browser_use_cdp_url": str(form.get("browser_use_cdp_url", "") or "").strip(),
         "chrome_executable_path": str(form.get("chrome_executable_path", "") or "").strip(),
         "chrome_user_data_dir": chrome_user_data_dir,
-        "chrome_profile_directory": chrome_profile_directory or chrome_profile_query,
+        "chrome_profile_directory": resolved_profile,
         "browser_use_headless": str(form.get("browser_use_headless", "") or "").strip(),
     }
 
@@ -414,12 +414,6 @@ def _browser_runtime_payload_for_control_plane() -> dict[str, Any] | None:
     cdp_url = str(browser_runtime["cdp_url"] or "").strip()
     chrome_user_data_dir = str(browser_runtime["chrome_user_data_dir"] or "").strip()
     chrome_profile_directory = str(browser_runtime["chrome_profile_directory"] or "").strip()
-    if chrome_profile_directory and has_app_context():
-        managed_process = _current_local_debug_chrome_process(current_app)
-        if managed_process is not None:
-            clone_dir = _runtime_clone_dir(chrome_profile_directory)
-            if clone_dir.is_dir():
-                chrome_user_data_dir = str(clone_dir)
     chrome_payload_ready = bool(
         browser_runtime["chrome_executable_path"]
         and chrome_user_data_dir
@@ -463,11 +457,6 @@ def _current_local_debug_chrome_process(app: Flask) -> subprocess.Popen[Any] | N
         app.extensions["local_debug_chrome_process"] = None
         return None
     return process
-
-
-def _runtime_clone_dir(profile_directory: str) -> Path:
-    slug = profile_directory.strip().replace(os.sep, "_").replace(" ", "_") or "default"
-    return _DASHBOARD_BROWSER_RUNTIME_DIR / slug
 
 
 def _cdp_port_from_runtime_state(browser_runtime: dict[str, Any]) -> int:
@@ -919,16 +908,10 @@ def create_app() -> Flask:
             cdp_port = _next_available_cdp_port(preferred_port)
 
         try:
-            ensure_profile_clone(
-                source_user_data_dir=chrome_user_data_dir,
-                profile_directory=chrome_profile_directory,
-                target_user_data_dir=_runtime_clone_dir(chrome_profile_directory),
-                refresh=True,
-            )
             process, launched_cdp_url = asyncio.run(
                 launch_local_debug_chrome(
                     cdp_port=cdp_port,
-                    user_data_dir=_runtime_clone_dir(chrome_profile_directory),
+                    user_data_dir=chrome_user_data_dir,
                     profile_directory=chrome_profile_directory,
                     chrome_path=chrome_path,
                     start_url="https://www.instagram.com/",

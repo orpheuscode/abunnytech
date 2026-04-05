@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 
 import httpx
 
@@ -506,7 +507,8 @@ def test_preview_page_falls_back_to_local_videos_when_control_plane_is_offline(
     assert resp.status_code == 200
     assert b"Control plane history is offline" in resp.data
     assert b"sample" in resp.data
-    assert sample_video.as_posix().encode() in resp.data
+    assert b"hackathon_videos" in resp.data
+    assert b"sample.mp4" in resp.data
 
 
 def test_demo_run_pipeline_flashes_latest_run_summary(tmp_path, monkeypatch) -> None:
@@ -768,7 +770,9 @@ def test_settings_page_resolves_profile_name_and_detects_user_data_dir(
 
     assert resp.status_code == 200
     saved = secrets_store.read_raw()
-    assert saved["CHROME_USER_DATA_DIR"] == "/home/kevin/.config/google-chrome"
+    assert os.path.normpath(saved["CHROME_USER_DATA_DIR"]) == os.path.normpath(
+        "/home/kevin/.config/google-chrome"
+    )
     assert saved["CHROME_PROFILE_DIRECTORY"] == "Profile 9"
 
 
@@ -806,16 +810,13 @@ def test_launch_local_browser_saves_cdp_and_profile(tmp_path, monkeypatch) -> No
         def terminate(self):
             return None
 
-    monkeypatch.setattr(
-        dashboard,
-        "ensure_profile_clone",
-        lambda **kwargs: tmp_path / "dashboard_clone",
-    )
-
     async def fake_wait_for_cdp(*args, **kwargs):
         return False
 
+    launched: dict[str, object] = {}
+
     async def fake_launch_local_debug_chrome(**kwargs):
+        launched.update(kwargs)
         return FakeProcess(), "http://127.0.0.1:9222"
 
     monkeypatch.setattr(
@@ -840,6 +841,10 @@ def test_launch_local_browser_saves_cdp_and_profile(tmp_path, monkeypatch) -> No
     )
 
     assert resp.status_code == 200
+    assert os.path.normpath(str(launched["user_data_dir"])) == os.path.normpath(
+        "/home/kevin/.config/google-chrome"
+    )
+    assert launched["profile_directory"] == "Profile 9"
     assert b"CDP is available at http://127.0.0.1:9222" in resp.data
     saved = secrets_store.read_raw()
     assert saved["BROWSER_USE_CDP_URL"] == "http://127.0.0.1:9222"
@@ -858,12 +863,6 @@ def test_launch_local_browser_uses_new_port_when_existing_cdp_is_alive(
 
         def terminate(self):
             return None
-
-    monkeypatch.setattr(
-        dashboard,
-        "ensure_profile_clone",
-        lambda **kwargs: tmp_path / "dashboard_clone",
-    )
 
     async def fake_wait_for_cdp(cdp_url: str, **kwargs):
         return cdp_url == "http://127.0.0.1:9222"
@@ -938,9 +937,7 @@ def test_browser_runtime_payload_falls_back_to_local_chrome_when_cdp_is_stale(
     }
 
 
-def test_browser_runtime_payload_uses_dashboard_clone_dir_for_managed_browser(
-    tmp_path, monkeypatch
-) -> None:
+def test_browser_runtime_payload_keeps_saved_user_data_for_managed_browser(monkeypatch) -> None:
     app = dashboard.create_app()
     app.config.update(TESTING=True)
 
@@ -966,9 +963,6 @@ def test_browser_runtime_payload_uses_dashboard_clone_dir_for_managed_browser(
             "headless": False,
         },
     )
-    clone_dir = tmp_path / "dashboard_clone"
-    clone_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(dashboard, "_runtime_clone_dir", lambda profile: clone_dir)
 
     with app.app_context():
         app.extensions["local_debug_chrome_process"] = FakeProcess()
@@ -977,7 +971,7 @@ def test_browser_runtime_payload_uses_dashboard_clone_dir_for_managed_browser(
     assert payload == {
         "cdp_url": "http://127.0.0.1:9222",
         "chrome_executable_path": "/usr/bin/google-chrome",
-        "chrome_user_data_dir": str(clone_dir),
+        "chrome_user_data_dir": "/home/kevin/.config/google-chrome",
         "chrome_profile_directory": "Profile 9",
         "headless": False,
     }

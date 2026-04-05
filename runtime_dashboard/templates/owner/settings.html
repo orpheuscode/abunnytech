@@ -54,7 +54,7 @@
   <label class="muted">Chrome profile directory</label>
   <input type="text" name="chrome_profile_directory" value="{{ chrome_profile_directory }}" placeholder="Profile 9"
     style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
-  <p class="muted" style="margin:-0.5rem 0 1rem;">You can type just the local Chrome profile name, for example <code>Profile 9</code> or <code>Default</code>. The dashboard will resolve it against the detected Chrome user-data directory.</p>
+  <p class="muted" style="margin:-0.5rem 0 1rem;">Use the <strong>parent</strong> Chrome folder (e.g. Windows: <code>%LOCALAPPDATA%\Google\Chrome\User Data</code>), <em>not</em> <code>…\User Data\Profile 3</code>. Put <code>Profile 3</code> in the field below. If you paste the full profile path, the dashboard trims it automatically. <strong>Close all Chrome windows</strong> before “Launch Local Chrome” so this profile is not locked.</p>
 
   <label class="muted">Browser window mode</label>
   <select name="browser_use_headless"
@@ -67,6 +67,6 @@
     <button type="submit" class="btn">Save runtime setup</button>
     <button type="submit" class="btn" formaction="{{ url_for('launch_local_browser') }}" formmethod="post">Launch Local Chrome + Save CDP</button>
   </div>
-  <p class="muted" style="margin:0.75rem 0 0;">The launch action uses the values currently in this form. If Chrome starts successfully, the dashboard saves the resulting <code>BROWSER_USE_CDP_URL</code> automatically.</p>
+  <p class="muted" style="margin:0.75rem 0 0;">Launch opens your real Chrome profile with remote debugging (no copy). The launch action uses the values in this form; on success the dashboard saves <code>BROWSER_USE_CDP_URL</code>.</p>
 </form>
 {% endblock %}

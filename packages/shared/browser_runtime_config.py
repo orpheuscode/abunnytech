@@ -109,6 +109,29 @@ def detect_local_chrome_profile_directory(user_data_dir: str | Path | None = Non
     return selected.name
 
 
+def normalize_chrome_user_data_root(
+    user_data_dir: str | Path,
+    profile_directory: str | None = None,
+) -> str:
+    """Ensure *user_data_dir* is the Chrome **parent** ``User Data`` folder, not a profile subfolder.
+
+    If someone pastes ``.../User Data/Profile 3`` and profile is ``Profile 3``, Chrome must get
+    ``--user-data-dir=.../User Data`` and ``--profile-directory=Profile 3``. Using the full
+    profile path as *user-data-dir* creates a separate root and drops cookies (fresh login).
+    """
+
+    raw = _clean(user_data_dir)
+    if not raw:
+        return raw
+    root = Path(raw).expanduser()
+    profile = _clean(profile_directory)
+    if not profile:
+        return os.path.normpath(str(root))
+    if root.name == profile or (os.name == "nt" and root.name.lower() == profile.lower()):
+        return os.path.normpath(str(root.parent))
+    return os.path.normpath(str(root))
+
+
 def resolve_local_chrome_profile_directory(
     profile_query: str | None,
     *,

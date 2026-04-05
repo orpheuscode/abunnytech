@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from packages.shared import browser_runtime_config as runtime_config
 
 
@@ -47,6 +49,22 @@ def test_build_effective_browser_runtime_env_auto_detects_local_chrome(monkeypat
     assert effective[runtime_config.ENV_CHROME_EXECUTABLE_PATH] == "/auto/google-chrome"
     assert effective[runtime_config.ENV_CHROME_PROFILE_DIRECTORY] == "Profile 4"
     assert effective[runtime_config.ENV_BROWSER_USE_HEADLESS] == "false"
+
+
+def test_normalize_chrome_user_data_root_strips_profile_suffix() -> None:
+    root = runtime_config.normalize_chrome_user_data_root(
+        "/home/u/.config/google-chrome/Profile 3",
+        profile_directory="Profile 3",
+    )
+    assert os.path.normpath(root) == os.path.normpath("/home/u/.config/google-chrome")
+
+
+def test_normalize_chrome_user_data_root_unchanged_when_already_parent() -> None:
+    root = runtime_config.normalize_chrome_user_data_root(
+        "/home/u/.config/google-chrome",
+        profile_directory="Profile 3",
+    )
+    assert os.path.normpath(root) == os.path.normpath("/home/u/.config/google-chrome")
 
 
 def test_resolve_local_chrome_profile_directory_accepts_profile_number(tmp_path) -> None:
