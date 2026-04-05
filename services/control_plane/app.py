@@ -189,6 +189,16 @@ def _ensure_asset(path_str: str, *, dry_run: bool) -> str:
     return str(path)
 
 
+def _prepare_media_output_path(path_str: str, *, dry_run: bool) -> str:
+    """Resolve a media output path without requiring the file to already exist."""
+
+    path = Path(path_str)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if dry_run and not path.exists():
+        path.write_bytes(b"")
+    return str(path)
+
+
 def _hackathon_defaults(payload: HackathonDemoRequest, *, dry_run: bool) -> dict[str, str]:
     settings = get_settings()
     return {
@@ -200,7 +210,7 @@ def _hackathon_defaults(payload: HackathonDemoRequest, *, dry_run: bool) -> dict
             payload.avatar_image_path or settings.hackathon_avatar_image_path,
             dry_run=dry_run,
         ),
-        "media_path": _ensure_asset(
+        "media_path": _prepare_media_output_path(
             payload.media_path or settings.hackathon_media_path,
             dry_run=dry_run,
         ),

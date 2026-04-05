@@ -13,7 +13,9 @@ from packages.shared.db import init_db
 from services.control_plane.app import (
     BrowserRuntimeRequest,
     GeminiOrchestrationRequest,
+    HackathonDemoRequest,
     _browser_runtime_env_from_request,
+    _hackathon_defaults,
     app,
 )
 
@@ -293,3 +295,28 @@ def test_browser_runtime_env_from_request() -> None:
         "CHROME_PROFILE_DIRECTORY": "Profile 9",
         "BROWSER_USE_HEADLESS": "false",
     }
+
+
+def test_hackathon_defaults_allows_missing_media_output_for_generation(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    product = tmp_path / "assets" / "product.png"
+    avatar = tmp_path / "assets" / "avatar.png"
+    product.parent.mkdir(parents=True, exist_ok=True)
+    avatar.parent.mkdir(parents=True, exist_ok=True)
+    product.write_bytes(b"product")
+    avatar.write_bytes(b"avatar")
+
+    media_path = tmp_path / "output" / "hackathon_videos" / "generated_reel.mp4"
+    monkeypatch.setenv("HACKATHON_PRODUCT_IMAGE_PATH", str(product))
+    monkeypatch.setenv("HACKATHON_AVATAR_IMAGE_PATH", str(avatar))
+    monkeypatch.setenv("HACKATHON_MEDIA_PATH", str(media_path))
+    get_settings.cache_clear()
+
+    assets = _hackathon_defaults(HackathonDemoRequest(), dry_run=False)
+
+    assert assets["product_image_path"] == str(product)
+    assert assets["avatar_image_path"] == str(avatar)
+    assert assets["media_path"] == str(media_path)
+    assert media_path.parent.exists()
+    assert not media_path.exists()
