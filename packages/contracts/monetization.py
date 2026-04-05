@@ -14,6 +14,7 @@ class ProductCatalogItem(ContractBase):
     identity_id: str
     name: str
     description: str = ""
+    image_url: str = ""
     price: float = 0.0
     currency: str = "USD"
     affiliate_url: str = ""

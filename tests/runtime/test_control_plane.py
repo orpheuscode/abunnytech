@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -105,3 +106,34 @@ async def test_hackathon_loop_endpoints(client: AsyncClient):
     stop = await client.post("/pipeline/loop/stop")
     assert stop.status_code == 200
     assert stop.json()["stopped"] is True
+
+
+@pytest.mark.asyncio
+async def test_gemini_orchestration_endpoint(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+    @dataclass
+    class FakeResult:
+        final_text: str | None = "Gemini orchestrator completed the pipeline."
+        tool_trace: list[dict] = None  # type: ignore[assignment]
+        turns_used: int = 3
+
+        def __post_init__(self):
+            if self.tool_trace is None:
+                self.tool_trace = [{"name": "run_reel_to_template_cycle"}]
+
+    async def fake_run(orchestrator, *, instruction: str, api_key=None, model=None, max_turns=12):
+        assert "Run the full pipeline" in instruction
+        assert "product_image_path" in instruction
+        assert max_turns == 5
+        return FakeResult()
+
+    import hackathon_pipelines
+
+    monkeypatch.setattr(hackathon_pipelines, "run_gemini_pipeline_orchestration", fake_run)
+
+    r = await client.post("/pipeline/gemini-orchestrate", json={"instruction": "Run the full pipeline", "max_turns": 5})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    assert data["pipeline"] == "gemini_meta_orchestrator"
+    assert data["final_text"] == "Gemini orchestrator completed the pipeline."
+    assert data["turns_used"] == 3

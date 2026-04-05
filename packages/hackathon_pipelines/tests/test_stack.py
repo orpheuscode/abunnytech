@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import pytest
+from PIL import Image
 
 from hackathon_pipelines import build_dry_run_stack, build_runtime_stack
+from hackathon_pipelines.adapters.live_api import VeoVideoGenerator
+from hackathon_pipelines.contracts import GenerationBundle, TemplatePerformanceLabel
 from hackathon_pipelines.stores import SQLiteHackathonStore
 
 
@@ -26,6 +29,69 @@ async def test_product_to_video_dry_run(tmp_path) -> None:
         avatar_image_path=str(a),
     )
     assert summary.generations == 1
+
+
+@pytest.mark.asyncio
+async def test_veo_dry_run_generates_local_mp4(tmp_path) -> None:
+    product = tmp_path / "product.png"
+    Image.new("RGB", (64, 64), color=(220, 120, 80)).save(product)
+    avatar = tmp_path / "avatar.png"
+    Image.new("RGB", (64, 64), color=(80, 120, 220)).save(avatar)
+    bundle = GenerationBundle(
+        bundle_id="bundle_1",
+        template_id="tpl_1",
+        product_id="prod_1",
+        veo_prompt="Create a quick UGC reel.",
+        product_title="Demo Camera",
+        product_description="Compact camera for creators.",
+        creative_brief="Show the avatar presenting the product.",
+        product_image_path=str(product),
+        avatar_image_path=str(avatar),
+        reference_image_paths=[str(product), str(avatar)],
+    )
+    veo = VeoVideoGenerator(dry_run=True, output_dir=tmp_path / "videos")
+
+    artifact = await veo.generate_ugc_video(bundle)
+
+    assert artifact.video_path is not None
+    assert artifact.video_path.endswith(".mp4")
+    assert (tmp_path / "videos").exists()
+
+
+@pytest.mark.asyncio
+async def test_generation_bundle_includes_product_description_and_feedback_context(tmp_path) -> None:
+    stack = build_dry_run_stack()
+    await stack.orchestrator.run_reel_to_template_cycle()
+    template = stack.templates.list_templates()[0]
+    template.performance_label = TemplatePerformanceLabel.SUCCESSFUL_REUSE
+    stack.templates.update_template(template)
+
+    product = stack.products.top_by_score(limit=1)
+    if not product:
+        p = tmp_path / "product.png"
+        p.write_bytes(b"fake")
+        a = tmp_path / "avatar.png"
+        a.write_bytes(b"fake")
+        await stack.orchestrator.run_product_to_video(
+            product_image_path=str(p),
+            avatar_image_path=str(a),
+        )
+        product = stack.products.top_by_score(limit=1)
+
+    p = tmp_path / "product2.png"
+    p.write_bytes(b"fake")
+    a = tmp_path / "avatar2.png"
+    a.write_bytes(b"fake")
+    bundle, _artifact = await stack.orchestrator._video.generate_for_product(  # type: ignore[attr-defined]
+        template,
+        product[0],
+        product_image_path=str(p),
+        avatar_image_path=str(a),
+    )
+    assert bundle.product_title == product[0].title
+    assert bundle.product_description
+    assert bundle.creative_brief
+    assert "successful_reuse" in str(bundle.prior_template_metadata.get("performance_label"))
 
 
 @pytest.mark.asyncio

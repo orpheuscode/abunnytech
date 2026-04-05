@@ -8,6 +8,8 @@ from typing import Any
 
 import httpx
 
+from runtime_dashboard.owner_data_store import load_fixture_collection
+
 _FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "demo_seed.json"
 
 
@@ -25,7 +27,7 @@ def _fetch_api(api_base: str, path: str) -> list[dict[str, Any]]:
 
 def load_identities(api_base: str | None) -> list[dict[str, Any]]:
     if api_base is None:
-        return _load_fixture("identities")
+        return load_fixture_collection("identities")
     return _fetch_api(api_base, "/identity_matrix")
 
 
@@ -73,5 +75,5 @@ def load_competitor_watchlist(api_base: str | None) -> list[dict[str, Any]]:
 
 def load_product_catalog(api_base: str | None) -> list[dict[str, Any]]:
     if api_base is None:
-        return _load_fixture("product_catalog")
+        return load_fixture_collection("product_catalog")
     return _fetch_api(api_base, "/product_catalog")

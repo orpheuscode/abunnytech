@@ -27,6 +27,11 @@ from hackathon_pipelines.adapters.live_api import GeminiTemplateAgent, TwelveLab
 from hackathon_pipelines.contracts import GeneratedVideoArtifact, GenerationBundle
 from hackathon_pipelines.ports import VeoGeneratorPort
 from hackathon_pipelines.prototype_bridge import build_locked_reference_veo_prompt
+from hackathon_pipelines.video_io import (
+    build_output_video_path,
+    download_video_to_path,
+    render_demo_bundle_video,
+)
 
 from hackathon_pipelines import build_runtime_stack
 
@@ -90,11 +95,13 @@ class VertexVeo31ReferenceVideoGenerator(VeoGeneratorPort):
     model: str = "veo-3.1-generate-001"
     aspect_ratio: str = "9:16"
     duration_seconds: int = 8
+    output_dir: str | Path = Path("output") / "hackathon_videos"
 
     async def generate_ugc_video(self, bundle: GenerationBundle) -> GeneratedVideoArtifact:
         from google.genai.types import GenerateVideosConfig, Image, VideoGenerationReferenceImage
 
         artifact_id = f"vid_{uuid4().hex[:12]}"
+        output_path = build_output_video_path(artifact_id=artifact_id, output_dir=self.output_dir)
         client = make_vertex_veo_client(project_id=self.project_id, location=self.location)
 
         # Veo 3.1 supports up to three reference asset images. We use avatar + product,
@@ -142,16 +149,26 @@ class VertexVeo31ReferenceVideoGenerator(VeoGeneratorPort):
 
         video = result.generated_videos[0].video
         video_uri = getattr(video, "uri", None)
+        local_video_path: str | None = None
+        download_error: str | None = None
+        if video_uri:
+            try:
+                downloaded = await download_video_to_path(video_uri, output_path)
+                local_video_path = str(downloaded)
+            except Exception as exc:
+                download_error = str(exc)
         return GeneratedVideoArtifact(
             artifact_id=artifact_id,
             bundle_id=bundle.bundle_id,
             video_uri=video_uri,
-            video_path=None,
+            video_path=local_video_path,
             model_id=self.model,
             reference_image_paths=reference_paths,
             provider_metadata={
                 "vertex_output_gcs_uri": self.output_gcs_uri,
                 "reference_mode": "asset_images",
+                "local_output_path": str(output_path),
+                "download_error": download_error,
             },
         )
 
@@ -391,3 +408,31 @@ def example_upload_reference_image(local_path: str) -> tuple[str, str]:
         raise FileNotFoundError(path)
     gcs_uri = f"gs://replace-with-your-bucket/reference-assets/{path.name}"
     return gcs_uri, guess_mime_type(str(path))
+
+
+async def run_demo_local_generation(
+    *,
+    avatar_image_path: str,
+    product_image_path: str,
+    prompt: str,
+    output_dir: str | Path = Path("output") / "hackathon_videos",
+) -> GeneratedVideoArtifact:
+    """Create a local demo mp4 from the avatar/product assets without calling Veo."""
+
+    bundle = build_manual_generation_bundle(
+        avatar_image_path=avatar_image_path,
+        product_image_path=product_image_path,
+        prompt=prompt,
+    )
+    artifact_id = f"demo_{uuid4().hex[:12]}"
+    output_path = build_output_video_path(artifact_id=artifact_id, output_dir=output_dir)
+    render_demo_bundle_video(bundle=bundle, output_path=output_path)
+    return GeneratedVideoArtifact(
+        artifact_id=artifact_id,
+        bundle_id=bundle.bundle_id,
+        video_uri=None,
+        video_path=str(output_path),
+        model_id="local-demo-render",
+        reference_image_paths=list(bundle.reference_image_paths),
+        provider_metadata={"mode": "local_demo", "prompt": prompt},
+    )

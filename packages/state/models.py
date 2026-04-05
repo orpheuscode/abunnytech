@@ -211,6 +211,7 @@ class ProductCatalogItem(ContractBase):
     identity_id: UUID | None = None
     name: str = ""
     description: str = ""
+    image_url: str = ""
     price_cents: int = 0
     url: str = ""
     affiliate_code: str = ""

@@ -30,6 +30,7 @@ class ReelSurfaceMetrics(BaseModel):
 
     reel_id: str
     source_url: str
+    video_download_url: str | None = None
     views: int = 0
     likes: int = 0
     comments: int = 0
@@ -95,6 +96,9 @@ class GenerationBundle(BaseModel):
     template_id: str
     product_id: str
     veo_prompt: str
+    product_title: str = ""
+    product_description: str = ""
+    creative_brief: str = ""
     product_image_path: str
     avatar_image_path: str
     reference_image_paths: list[str] = Field(default_factory=list)

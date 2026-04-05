@@ -22,6 +22,7 @@ from hackathon_pipelines.contracts import (
     VideoTemplateRecord,
 )
 from hackathon_pipelines.ports import GeminiVideoAgentPort, VeoGeneratorPort, VideoUnderstandingPort
+from hackathon_pipelines.video_io import build_output_video_path, download_video_to_path, render_demo_bundle_video
 
 TWELVE_LABS_STRUCTURE_PROMPT = """\
 You are a video analyst. Watch the video and respond with ONLY valid JSON (no markdown), keys:
@@ -49,6 +50,29 @@ def _extract_json_object(text: str) -> dict:
         msg = "No JSON object found in model output"
         raise ValueError(msg)
     return json.loads(m.group(0))
+
+
+def _product_description(product: ProductCandidate) -> str:
+    notes = (product.notes or "").strip()
+    if notes:
+        return notes
+    return (
+        f"{product.title} for a short-form storefront reel. "
+        "Show the product clearly, explain what makes it appealing, and keep the pacing UGC-friendly."
+    )
+
+
+def _creative_brief(template: VideoTemplateRecord, product: ProductCandidate) -> str:
+    parts = [
+        f"Base prompt from winning reel research: {template.veo_prompt_draft}".strip(),
+        f"Product to feature: {product.title}.",
+        f"Product description: {_product_description(product)}",
+    ]
+    if template.performance_label is not None:
+        parts.append(f"Previous reel feedback label: {template.performance_label.value}.")
+    if template.disposition_reason:
+        parts.append(f"Template rationale from reel discovery: {template.disposition_reason}.")
+    return " ".join(part for part in parts if part)
 
 
 class TwelveLabsUnderstanding(VideoUnderstandingPort):
@@ -166,16 +190,24 @@ class GeminiTemplateAgent(GeminiVideoAgentPort):
         product_image_path: str,
         avatar_image_path: str,
     ) -> GenerationBundle:
+        product_description = _product_description(product)
+        creative_brief = _creative_brief(template, product)
         if self._dry_run or not self._api_key:
             return GenerationBundle(
                 bundle_id=f"gen_{uuid.uuid4().hex[:12]}",
                 template_id=template.template_id,
                 product_id=product.product_id,
                 veo_prompt=template.veo_prompt_draft,
+                product_title=product.title,
+                product_description=product_description,
+                creative_brief=creative_brief,
                 product_image_path=product_image_path,
                 avatar_image_path=avatar_image_path,
                 reference_image_paths=[product_image_path, avatar_image_path],
-                prior_template_metadata={"disposition": template.disposition.value},
+                prior_template_metadata={
+                    "disposition": template.disposition.value,
+                    "performance_label": template.performance_label.value if template.performance_label else None,
+                },
             )
 
         client = self._client()
@@ -186,6 +218,8 @@ class GeminiTemplateAgent(GeminiVideoAgentPort):
                 {
                     "template": template.model_dump(mode="json"),
                     "product": product.model_dump(mode="json"),
+                    "product_description": product_description,
+                    "creative_brief": creative_brief,
                     "product_image_path": product_image_path,
                     "avatar_image_path": avatar_image_path,
                 },
@@ -201,10 +235,16 @@ class GeminiTemplateAgent(GeminiVideoAgentPort):
             template_id=template.template_id,
             product_id=product.product_id,
             veo_prompt=veo_prompt,
+            product_title=product.title,
+            product_description=product_description,
+            creative_brief=creative_brief,
             product_image_path=product_image_path,
             avatar_image_path=avatar_image_path,
             reference_image_paths=[product_image_path, avatar_image_path],
-            prior_template_metadata={"gemini_notes": data.get("notes")},
+            prior_template_metadata={
+                "gemini_notes": data.get("notes"),
+                "performance_label": template.performance_label.value if template.performance_label else None,
+            },
         )
 
 
@@ -215,22 +255,26 @@ class VeoVideoGenerator(VeoGeneratorPort):
         api_key: str | None = None,
         model: str | None = None,
         dry_run: bool = True,
+        output_dir: str | Path = Path("output") / "hackathon_videos",
     ) -> None:
         self._dry_run = dry_run
         self._api_key = api_key or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
         self._model = model or os.getenv("VEO_MODEL_ID", "veo-3.1-generate-preview")
+        self._output_dir = Path(output_dir)
 
     async def generate_ugc_video(self, bundle: GenerationBundle) -> GeneratedVideoArtifact:
         artifact_id = f"vid_{uuid.uuid4().hex[:12]}"
+        output_path = build_output_video_path(artifact_id=artifact_id, output_dir=self._output_dir)
         if self._dry_run or not self._api_key:
+            render_demo_bundle_video(bundle=bundle, output_path=output_path)
             return GeneratedVideoArtifact(
                 artifact_id=artifact_id,
                 bundle_id=bundle.bundle_id,
                 video_uri=None,
-                video_path=None,
+                video_path=str(output_path),
                 model_id=self._model,
                 reference_image_paths=list(bundle.reference_image_paths),
-                provider_metadata={"mode": "dry_run", "pending_team_snippet": "multi_reference_veo"},
+                provider_metadata={"mode": "dry_run", "local_demo_video": str(output_path)},
             )
 
         import asyncio
@@ -248,15 +292,29 @@ class VeoVideoGenerator(VeoGeneratorPort):
             raise RuntimeError(msg)
         video = result.generated_videos[0].video
         uri = getattr(video, "uri", None) if video else None
+        local_video_path: str | None = None
+        if uri:
+            try:
+                downloaded = await download_video_to_path(uri, output_path)
+                local_video_path = str(downloaded)
+            except Exception as exc:
+                local_video_path = None
+                download_error = str(exc)
+            else:
+                download_error = None
+        else:
+            download_error = None
         return GeneratedVideoArtifact(
             artifact_id=artifact_id,
             bundle_id=bundle.bundle_id,
             video_uri=uri,
-            video_path=None,
+            video_path=local_video_path,
             model_id=self._model,
             reference_image_paths=list(bundle.reference_image_paths),
             provider_metadata={
                 "reference_image_paths": list(bundle.reference_image_paths),
                 "live_reference_mode": "single_image_until_team_snippet_lands",
+                "local_output_path": str(output_path),
+                "download_error": download_error,
             },
         )

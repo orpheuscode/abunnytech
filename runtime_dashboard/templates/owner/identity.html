@@ -1,30 +1,42 @@
 {% extends "owner/base.html" %}
 {% block content %}
 <div class="page-head" style="background: linear-gradient(135deg, #6c5ce7, #a29bfe);">
-  <h1 style="margin:0;">Stage 0: Identity Matrix</h1>
+  <h1 style="margin:0;">Avatar Library</h1>
 </div>
-{% if not identities %}
-<p class="muted">No identities found. Seed data or connect to the API.</p>
-{% else %}
-<p><strong>{{ identities|length }}</strong> identity profile(s) loaded.</p>
-{% for ident in identities %}
 <div class="card" style="border-left:4px solid #6c5ce7;">
-  <h3 style="margin:0 0 0.25rem;">{{ ident.get('name', 'Unnamed') }}</h3>
-  <p class="muted" style="margin:0;font-style:italic;">{{ ident.get('tagline', '') }}</p>
-  <hr class="sep">
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;">
-    <div><span class="muted">Archetype</span><br><code>{{ ident.get('archetype', 'unknown') }}</code></div>
-    <div><span class="muted">Platforms</span><br>
-      {% for p in ident.get('platforms', []) %}
-      <code>{{ p.get('platform', '?') }}</code> {{ p.get('handle', '') }}<br>
-      {% else %}<span class="muted">None</span>{% endfor %}
+  <h3 style="margin-top:0;">Upload Avatar Folder</h3>
+  <p class="muted">This is a shared avatar library for one Instagram storefront. Future Veo integration can pull directly from this folder: <code>{{ avatar_library_path }}</code></p>
+  <form method="post" action="{{ url_for('upload_avatar_library_asset') }}" enctype="multipart/form-data" class="stack-sm">
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <div class="form-grid">
+      <div class="field">
+        <label for="avatar-library-file">Upload avatar pic</label>
+        <input id="avatar-library-file" type="file" name="avatar_file" accept="image/*">
+      </div>
     </div>
-    <div><span class="muted">Voice</span><br>
-      {% set v = ident.get('voice', {}) %}
-      <span class="muted">Provider {{ v.get('provider', 'n/a') }} · Style {{ v.get('style', 'n/a') }}</span>
+    <div>
+      <button class="btn" type="submit">Add To Avatar Folder</button>
     </div>
-  </div>
+  </form>
 </div>
-{% endfor %}
+
+<h3>Saved Avatars</h3>
+{% if not avatar_library %}
+<p class="muted">No avatar files uploaded yet.</p>
+{% else %}
+<div class="form-grid">
+  {% for asset in avatar_library %}
+  <div class="card" style="margin-bottom:0;">
+    <img class="thumb" src="{{ asset.get('url') }}" alt="{{ asset.get('filename', 'Avatar') }}">
+    <p style="margin:0.75rem 0 0;"><strong>{{ asset.get('filename', '') }}</strong></p>
+    <p class="muted" style="margin:0.25rem 0 0;"><code>{{ asset.get('path', '') }}</code></p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if identities %}
+<hr class="sep">
+<p><strong>{{ identities|length }}</strong> pipeline identity record(s) still loaded in the backend, but avatar uploads are now shared across one storefront instead of being split by profile.</p>
 {% endif %}
 {% endblock %}

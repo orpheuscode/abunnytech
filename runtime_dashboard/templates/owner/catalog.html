@@ -1,19 +1,70 @@
 {% extends "owner/base.html" %}
 {% block content %}
 <div class="page-head" style="background: linear-gradient(135deg, #a29bfe, #6c5ce7);">
-  <h1 style="margin:0;">Stage 5: Monetization</h1>
+  <h1 style="margin:0;">Instagram Storefront</h1>
 </div>
-<p class="muted">Stage 5 is <strong>feature-flagged</strong>. Enable <code>FEATURE_STAGE5_MONETIZE=true</code> to activate in production.</p>
-<h3>Product Catalog</h3>
+<p class="muted">This page is set up as one storefront front, not separate account profiles. Add products with a picture and description for the shared Instagram shop page.</p>
+<div class="card" style="border-left:4px solid #6c5ce7;">
+  <h3 style="margin-top:0;">Add Product</h3>
+  <form method="post" action="{{ url_for('create_catalog_product') }}" enctype="multipart/form-data" class="stack-sm">
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <div class="form-grid">
+      <div class="field">
+        <label for="product-name">Product name</label>
+        <input id="product-name" type="text" name="name" placeholder="Creator toolkit">
+      </div>
+      <div class="field">
+        <label for="product-price">Price (USD)</label>
+        <input id="product-price" type="number" name="price" min="0" step="0.01" placeholder="19.99">
+      </div>
+      <div class="field">
+        <label for="product-url">Product URL</label>
+        <input id="product-url" type="text" name="url" placeholder="https://store.example.com/product">
+      </div>
+      <div class="field">
+        <label for="product-code">Affiliate code</label>
+        <input id="product-code" type="text" name="affiliate_code" placeholder="BUNNY10">
+      </div>
+      <div class="field">
+        <label for="product-image">Upload product pic</label>
+        <input id="product-image" type="file" name="product_image" accept="image/*">
+      </div>
+      <div class="field" style="grid-column:1 / -1;">
+        <label for="product-description">Description</label>
+        <textarea id="product-description" name="description" placeholder="What makes this product worth promoting on the storefront?"></textarea>
+      </div>
+    </div>
+    <label class="inline-check">
+      <input type="checkbox" name="active" value="1" checked>
+      Show on storefront
+    </label>
+    <div>
+      <button class="btn" type="submit">Save Product</button>
+    </div>
+  </form>
+</div>
+<h3>Storefront Products</h3>
 {% if not products %}
-<p class="muted">No products in the catalog yet.</p>
+<p class="muted">No products in the storefront yet.</p>
 {% else %}
 {% for prod in products %}
 <div class="card" style="border-left:4px solid #a29bfe;">
-  <strong>{{ prod.get('name', 'Unnamed Product') }}</strong> — ${{ "%.2f"|format((prod.get('price_cents', 0) or 0) / 100) }}
-  <span style="float:right;">{% if prod.get('active') %}✅ Active{% else %}⛔ Inactive{% endif %}</span>
-  <p class="muted" style="margin:0.35rem 0 0;">{{ prod.get('description', '') }}</p>
-  {% if prod.get('url') %}<p class="muted" style="margin:0.25rem 0 0;">{{ prod.get('url') }}</p>{% endif %}
+  <div class="card-grid">
+    <div>
+      {% if prod.get('image_url') %}
+      <img class="thumb" src="{{ prod.get('image_url') }}" alt="{{ prod.get('name', 'Product image') }}">
+      {% else %}
+      <div class="thumb-placeholder">No product pic uploaded</div>
+      {% endif %}
+    </div>
+    <div>
+      <strong>{{ prod.get('name', 'Unnamed Product') }}</strong> - ${{ "%.2f"|format((prod.get('price_cents', 0) or 0) / 100) }}
+      <span style="float:right;">{% if prod.get('active') %}Live{% else %}Hidden{% endif %}</span>
+      <p class="muted" style="margin:0.35rem 0 0;">{{ prod.get('description', '') }}</p>
+      {% if prod.get('url') %}<p class="muted" style="margin:0.25rem 0 0;">{{ prod.get('url') }}</p>{% endif %}
+      {% if prod.get('affiliate_code') %}<p class="muted" style="margin:0.25rem 0 0;">Code: <code>{{ prod.get('affiliate_code') }}</code></p>{% endif %}
+    </div>
+  </div>
 </div>
 {% endfor %}
 {% endif %}

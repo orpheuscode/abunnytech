@@ -17,3 +17,6 @@ examples/stage2/out/
 dist/
 .python-version.bak
 data/reels/
+data/chrome*/
+data/*.sqlite3
+output/hackathon_videos/

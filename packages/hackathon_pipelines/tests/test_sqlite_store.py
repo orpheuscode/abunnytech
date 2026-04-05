@@ -27,6 +27,7 @@ def test_sqlite_hackathon_store_round_trips(tmp_path: Path) -> None:
     reel = ReelSurfaceMetrics(
         reel_id="reel_1",
         source_url="https://instagram.com/reel_1",
+        video_download_url="https://cdn.example.com/reel_1.mp4",
         views=12_500,
         likes=740,
         comments=63,
@@ -34,6 +35,7 @@ def test_sqlite_hackathon_store_round_trips(tmp_path: Path) -> None:
     store.upsert_reel_metrics([reel])
     assert store.get_reel_metric("reel_1") is not None
     assert store.get_reel_metric("reel_1").views == 12_500
+    assert store.get_reel_metric("reel_1").video_download_url == "https://cdn.example.com/reel_1.mp4"
 
     updated_reel = reel.model_copy(update={"views": 18_000, "likes": 900})
     store.upsert_reel_metrics([updated_reel])

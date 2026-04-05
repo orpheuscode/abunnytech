@@ -69,6 +69,76 @@
       padding: 1rem;
       margin-bottom: 0.75rem;
     }
+    .card-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    .thumb {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #111827;
+    }
+    .thumb-placeholder {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      background: #111827;
+      text-align: center;
+      padding: 0.75rem;
+      font-size: 0.85rem;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.9rem;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .field label {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .field input[type="text"],
+    .field input[type="number"],
+    .field input[type="file"],
+    .field select,
+    .field textarea {
+      width: 100%;
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #111827;
+      color: var(--text);
+      font: inherit;
+    }
+    .field textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+    .stack-sm {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+    .inline-check {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
     .prefs {
       margin-top: 1rem;
       padding-top: 1rem;
@@ -107,6 +177,16 @@
     hr.sep { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
     .muted { color: var(--muted); font-size: 0.9rem; }
     .footer-note { margin-top: auto; padding-top: 1rem; font-size: 0.7rem; color: var(--muted); text-align: center; }
+    @media (max-width: 900px) {
+      body { display: block; }
+      .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 2px solid var(--accent-dim);
+      }
+      main { padding: 1rem; }
+      .card-grid { grid-template-columns: 1fr; }
+    }
   </style>
   {% block extra_css %}{% endblock %}
 </head>

@@ -108,6 +108,18 @@ class HackathonLoopRequest(BaseModel):
     workdir: str | None = None
 
 
+class GeminiOrchestrationRequest(BaseModel):
+    instruction: str = "Run the full pipeline end to end."
+    dry_run: bool | None = None
+    niche_query: str | None = None
+    caption: str | None = None
+    product_image_path: str | None = None
+    avatar_image_path: str | None = None
+    media_path: str | None = None
+    db_path: str | None = None
+    max_turns: int = Field(default=12, ge=1, le=30)
+
+
 def _ensure_asset(path_str: str, *, dry_run: bool) -> str:
     path = Path(path_str)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -176,6 +188,55 @@ async def run_demo_pipeline(payload: HackathonDemoRequest | None = None) -> dict
         "avatar_image_path": assets["avatar_image_path"],
         "media_path": summary.media_path,
         "summary": summary.model_dump(mode="json"),
+    }
+
+
+@app.post("/pipeline/gemini-orchestrate")
+async def run_gemini_orchestration(payload: GeminiOrchestrationRequest | None = None) -> dict[str, Any]:
+    from hackathon_pipelines import run_gemini_pipeline_orchestration
+
+    settings = get_settings()
+    request = payload or GeminiOrchestrationRequest()
+    dry_run = settings.dry_run if request.dry_run is None else request.dry_run
+    assets = _hackathon_defaults(
+        HackathonDemoRequest(
+            dry_run=dry_run,
+            niche_query=request.niche_query,
+            caption=request.caption,
+            product_image_path=request.product_image_path,
+            avatar_image_path=request.avatar_image_path,
+            media_path=request.media_path,
+            db_path=request.db_path,
+        ),
+        dry_run=dry_run,
+    )
+    stack = _build_hackathon_stack(dry_run=dry_run, db_path=request.db_path)
+    instruction = (
+        f"{request.instruction.strip()}\n\n"
+        "When tool parameters are required, use these exact values:\n"
+        f'- niche_query: "{request.niche_query or settings.hackathon_niche_query}"\n'
+        f'- caption: "{request.caption or settings.hackathon_default_caption}"\n'
+        f'- product_image_path: "{assets["product_image_path"]}"\n'
+        f'- avatar_image_path: "{assets["avatar_image_path"]}"\n'
+        f'- media_path: "{assets["media_path"]}"\n'
+        f"- dry_run: {str(dry_run).lower()}\n"
+    )
+    result = await run_gemini_pipeline_orchestration(
+        stack.orchestrator,
+        instruction=instruction,
+        max_turns=request.max_turns,
+    )
+    return {
+        "ok": True,
+        "pipeline": "gemini_meta_orchestrator",
+        "dry_run": dry_run,
+        "db_path": str(stack.store_path),
+        "product_image_path": assets["product_image_path"],
+        "avatar_image_path": assets["avatar_image_path"],
+        "media_path": assets["media_path"],
+        "final_text": result.final_text,
+        "tool_trace": result.tool_trace,
+        "turns_used": result.turns_used,
     }
 
 

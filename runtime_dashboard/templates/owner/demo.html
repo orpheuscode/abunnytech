@@ -2,19 +2,49 @@
 {% block content %}
 <div class="page-head" style="background: linear-gradient(135deg, #2d3436, #636e72);">
   <h1 style="margin:0;">Demo Control Surface</h1>
-  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Operator tools for demos and artifact inspection.</p>
+  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Operator tools for Gemini orchestration, full-pipeline runs, and artifact inspection.</p>
 </div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
   <div class="card">
-    <h3 style="margin-top:0;">Dry-run demo</h3>
-    <p class="muted">Simulate a full pipeline pass without posting to real platforms.</p>
-    <form method="post" action="{{ url_for('demo_dry_run') }}"><button type="submit" class="btn">Run dry-run demo</button></form>
+    <h3 style="margin-top:0;">Run Controls</h3>
+    <p class="muted">Control plane: <code>{{ control_plane_base }}</code>{% if not control_plane_available %} (offline){% endif %}</p>
+    <form method="post" action="{{ url_for('demo_run_gemini_orchestrator') }}" class="stack-sm">
+      <div class="field">
+        <label for="gemini-instruction">Gemini instruction</label>
+        <textarea id="gemini-instruction" name="instruction">Run the entire pipeline end to end for the shared Instagram storefront.</textarea>
+      </div>
+      <div>
+        <button type="submit" class="btn">Run Gemini Orchestrator</button>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('demo_run_pipeline') }}">
+      <button type="submit" class="btn">Run Entire Pipeline</button>
+    </form>
   </div>
   <div class="card">
-    <h3 style="margin-top:0;">Pipeline status</h3>
+    <h3 style="margin-top:0;">Start / Stop</h3>
+    <p class="muted">Use the loop controls when you want the pipeline to keep cycling until stopped.</p>
+    <form method="post" action="{{ url_for('demo_start_loop') }}">
+      <button type="submit" class="btn">Start Pipeline Loop</button>
+    </form>
+    <form method="post" action="{{ url_for('demo_stop_loop') }}">
+      <button type="submit" class="btn">Stop Pipeline Loop</button>
+    </form>
+    <hr class="sep">
+    <p><strong>Status:</strong> {% if loop_status.get('running') %}Running{% else %}Stopped{% endif %}</p>
+    <p class="muted">Cycles: {{ loop_status.get('cycle_count', 0) }}</p>
+    <p class="muted">Last started: {{ loop_status.get('last_started_at') or 'n/a' }}</p>
+    <p class="muted">Last finished: {{ loop_status.get('last_finished_at') or 'n/a' }}</p>
+    <p class="muted">Next run: {{ loop_status.get('next_run_at') or 'n/a' }}</p>
+    {% if loop_status.get('last_error') %}
+    <p class="muted">Last error: {{ loop_status.get('last_error') }}</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;">Pipeline Status</h3>
     <ul style="margin:0;padding-left:1.2rem;">
       {% for label, count in health %}
-      <li>{% if count > 0 %}✅{% else %}⚠️{% endif %} <strong>{{ label }}:</strong> {{ count }} record(s)</li>
+      <li>{% if count > 0 %}OK{% else %}Empty{% endif %} <strong>{{ label }}:</strong> {{ count }} record(s)</li>
       {% endfor %}
     </ul>
   </div>
@@ -22,7 +52,7 @@
 <hr class="sep">
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;">
   <div class="card">
-    <h3 style="margin-top:0;">Inspect artifacts</h3>
+    <h3 style="margin-top:0;">Inspect Artifacts</h3>
     <form method="get" action="{{ url_for('page', slug='demo') }}">
       <label class="muted">Type</label>
       <select name="artifact" style="width:100%;margin:0.25rem 0 0.75rem;padding:0.45rem;border-radius:6px;background:#1e1e36;color:#e2e8f0;border:1px solid #6d28d9;">
@@ -42,9 +72,9 @@
     </form>
   </div>
   <div class="card">
-    <h3 style="margin-top:0;">Latest directive / redo</h3>
+    <h3 style="margin-top:0;">Latest Directive / Redo</h3>
     {% if latest_directive %}
-    <p><strong>Summary:</strong> {{ latest_directive.get('summary', 'n/a')[:200] }}{% if latest_directive.get('summary', '')|length > 200 %}…{% endif %}</p>
+    <p><strong>Summary:</strong> {{ latest_directive.get('summary', 'n/a')[:200] }}{% if latest_directive.get('summary', '')|length > 200 %}...{% endif %}</p>
     <p class="muted">Confidence: {{ "%.0f"|format((latest_directive.get('confidence', 0) or 0) * 100) }}%</p>
     <p class="muted">Actions: {{ (latest_directive.get('directives') or [])|length }}</p>
     {% else %}
@@ -54,7 +84,7 @@
     {% if redo_pending %}
     <p><strong>Redo queue:</strong> {{ redo_pending|length }} pending</p>
     <ul>{% for item in redo_pending[:8] %}
-      <li class="muted">{{ item.get('reason', '')|replace('_', ' ')|title }} → Stage {{ item.get('target_stage', '?') }}, P{{ item.get('priority', '?') }}</li>
+      <li class="muted">{{ item.get('reason', '')|replace('_', ' ')|title }} -> Stage {{ item.get('target_stage', '?') }}, P{{ item.get('priority', '?') }}</li>
     {% endfor %}</ul>
     {% else %}
     <p style="color:#6ee7b7;">Redo queue is empty.</p>
@@ -62,7 +92,7 @@
   </div>
 </div>
 {% if selected_json %}
-<h3>Selected artifact (JSON)</h3>
+<h3>Selected Artifact (JSON)</h3>
 <pre class="json">{{ selected_json }}</pre>
 {% endif %}
 {% endblock %}

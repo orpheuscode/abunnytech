@@ -147,6 +147,21 @@ class TestOtherCollections:
         assert isinstance(resp.json(), list)
 
     @pytest.mark.asyncio
+    async def test_create_product_catalog_with_image(self, client: AsyncClient) -> None:
+        payload = {
+            "name": "Creator Camera",
+            "description": "Compact desk camera for short-form demos.",
+            "price_cents": 4900,
+            "url": "https://store.example.com/camera",
+            "image_url": "/static/uploads/product-camera.png",
+        }
+        resp = await client.post("/product_catalog", json=payload)
+        assert resp.status_code == 201
+        created = resp.json()
+        assert created["name"] == "Creator Camera"
+        assert created["image_url"] == "/static/uploads/product-camera.png"
+
+    @pytest.mark.asyncio
     async def test_seed_then_list(self, client: AsyncClient) -> None:
         await client.post("/seed")
         resp = await client.get("/identity_matrix")
