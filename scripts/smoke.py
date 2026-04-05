@@ -20,6 +20,8 @@ PASS = "[PASS]"
 FAIL = "[FAIL]"
 SKIP = "[SKIP]"
 BANNER = "=" * 60
+PYTEST_ENV = {"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
+PYTEST_ARGS = ["-p", "pytest_asyncio.plugin"]
 
 
 class Results:
@@ -41,9 +43,36 @@ class Results:
         print(f"  {SKIP} {label}" + (f"  {reason}" if reason else ""))
 
 
-def _run(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) -> subprocess.CompletedProcess:
+def _run(
+    cmd: list[str],
+    *,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+    timeout_seconds: int | None = None,
+) -> subprocess.CompletedProcess[str]:
     run_env = {**os.environ, **(env or {})}
-    return subprocess.run(cmd, capture_output=True, text=True, cwd=cwd or REPO, env=run_env)
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=cwd or REPO,
+            env=run_env,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=124,
+            stdout=stdout,
+            stderr=stderr or f"timed out after {timeout_seconds}s",
+        )
+
+
+def _tail(text: str, limit: int = 500) -> str:
+    return text[-limit:] if len(text) > limit else text
 
 
 def run_smoke(verbose: bool = False) -> int:
@@ -81,22 +110,34 @@ def run_smoke(verbose: bool = False) -> int:
 
     # 3. M1 contract example validation
     print("\n--- Contract Validation ---")
-    proc = _run(["uv", "run", "pytest", "packages/pipeline_contracts/tests/", "-v", "--tb=short"])
+    proc = _run(
+        ["uv", "run", "pytest", *PYTEST_ARGS, "packages/pipeline_contracts/tests/", "-v", "--tb=short"],
+        env=PYTEST_ENV,
+        timeout_seconds=60,
+    )
     if proc.returncode == 0:
         r.ok("m1_contracts", "pipeline_contracts examples + schemas validated")
     else:
         r.fail("m1_contracts", f"exit={proc.returncode}")
         if verbose:
-            print(proc.stdout[-500:] if len(proc.stdout) > 500 else proc.stdout)
+            print(_tail(proc.stdout))
+            if proc.stderr:
+                print(_tail(proc.stderr))
 
     # 4. Contract compatibility bridge
-    proc = _run(["uv", "run", "pytest", "tests/test_contract_compat.py", "-v", "--tb=short"])
+    proc = _run(
+        ["uv", "run", "pytest", *PYTEST_ARGS, "tests/test_contract_compat.py", "-v", "--tb=short"],
+        env=PYTEST_ENV,
+        timeout_seconds=60,
+    )
     if proc.returncode == 0:
         r.ok("contract_compat", "M1 <-> runtime contract compatibility verified")
     else:
         r.fail("contract_compat", f"exit={proc.returncode}")
         if verbose:
-            print(proc.stdout[-500:] if len(proc.stdout) > 500 else proc.stdout)
+            print(_tail(proc.stdout))
+            if proc.stderr:
+                print(_tail(proc.stderr))
 
     # 5. CLI demo pipeline (stages 0-4)
     print("\n--- Pipeline Demo (dry-run) ---")
@@ -104,6 +145,7 @@ def run_smoke(verbose: bool = False) -> int:
     proc = _run(
         ["uv", "run", "python", "-m", "orchestrator.cli", "demo"],
         env=demo_env,
+        timeout_seconds=60,
     )
     if proc.returncode == 0 and "Demo complete!" in proc.stdout:
         try:
@@ -120,14 +162,18 @@ def run_smoke(verbose: bool = False) -> int:
             r.ok("pipeline_demo", "Demo completed (output not JSON-parseable)")
     else:
         r.fail("pipeline_demo", f"exit={proc.returncode}")
-        if verbose and proc.stderr:
-            print(proc.stderr[-500:])
+        if verbose:
+            if proc.stdout:
+                print(_tail(proc.stdout))
+            if proc.stderr:
+                print(_tail(proc.stderr))
 
     # 6. Stage-0-5 test suite
     print("\n--- Stage 0-5 Tests ---")
     proc = _run(
-        ["uv", "run", "pytest", "tests/runtime/", "-v", "--tb=short"],
-        env=demo_env,
+        ["uv", "run", "pytest", *PYTEST_ARGS, "tests/runtime/", "-v", "--tb=short"],
+        env={**demo_env, **PYTEST_ENV},
+        timeout_seconds=120,
     )
     if proc.returncode == 0:
         lines = proc.stdout.strip().split("\n")
@@ -136,15 +182,25 @@ def run_smoke(verbose: bool = False) -> int:
     else:
         r.fail("stage05_tests", f"exit={proc.returncode}")
         if verbose:
-            print(proc.stdout[-500:])
+            print(_tail(proc.stdout))
+            if proc.stderr:
+                print(_tail(proc.stderr))
 
     # 7. Browser runtime tests
     print("\n--- Browser Runtime ---")
-    proc = _run(["uv", "run", "pytest", "packages/browser_runtime/", "-v", "--tb=short"])
+    proc = _run(
+        ["uv", "run", "pytest", *PYTEST_ARGS, "packages/browser_runtime/", "-v", "--tb=short"],
+        env=PYTEST_ENV,
+        timeout_seconds=120,
+    )
     if proc.returncode == 0:
         r.ok("browser_runtime", "53 tests passed")
     else:
         r.fail("browser_runtime", f"exit={proc.returncode}")
+        if verbose:
+            print(_tail(proc.stdout))
+            if proc.stderr:
+                print(_tail(proc.stderr))
 
     # Summary
     total = len(r.passed) + len(r.failed)

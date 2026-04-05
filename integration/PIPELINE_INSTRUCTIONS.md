@@ -75,7 +75,10 @@ For **live** Browser Use, Gemini, TwelveLabs, and Veo, construct the same pipeli
 - `BrowserProviderFacade(browser_runtime.providers.browser_use.BrowserUseProvider(dry_run=False, ...))`
 - `TwelveLabsUnderstanding(dry_run=False)` (requires `TWELVE_LABS_API_KEY` or `TWELVELABS_API_KEY`)
 - `GeminiTemplateAgent(dry_run=False)` (requires `GOOGLE_API_KEY` or `GEMINI_API_KEY`)
-- `VeoVideoGenerator(dry_run=False)` (same Google key; optional `VEO_MODEL_ID`, default `veo-3.1-generate-preview`)
+- `VeoVideoGenerator(dry_run=False)`:
+  - AI Studio / Gemini API: requires `GOOGLE_API_KEY` or `GEMINI_API_KEY`; default model `veo-3.1-fast-generate-preview`
+  - Vertex AI: set `GOOGLE_GENAI_USE_VERTEXAI=True` plus the usual Google Cloud project/location auth; default model `veo-3.1-fast-generate-001`
+  - optional `VEO_MODEL_ID` overrides either default
 
 Browser Use LLM selection (see `packages/browser_runtime/browser_runtime/providers/browser_use.py`):
 

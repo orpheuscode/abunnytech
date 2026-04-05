@@ -1,8 +1,214 @@
 {% extends "owner/base.html" %}
 {% block content %}
+<style>
+  .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1.2rem 0 1.4rem;
+  }
+  .analytics-card {
+    padding: 1rem 1.1rem;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(32, 41, 66, 0.96), rgba(21, 28, 47, 0.98));
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .analytics-value {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    margin: 0.35rem 0 0.2rem;
+  }
+  .spotlight {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.4rem;
+  }
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .metric-tile {
+    padding: 0.85rem 0.9rem;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .placeholder-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #fcd34d;
+    background: rgba(245, 158, 11, 0.1);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  .analytics-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.75rem;
+  }
+  .analytics-table th,
+  .analytics-table td {
+    text-align: left;
+    padding: 0.8rem 0.65rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    vertical-align: top;
+  }
+  .analytics-table th {
+    color: #cbd5e1;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  @media (max-width: 1100px) {
+    .analytics-grid, .metrics-row, .spotlight {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 760px) {
+    .analytics-grid, .metrics-row, .spotlight {
+      grid-template-columns: 1fr;
+    }
+    .analytics-table {
+      display: block;
+      overflow-x: auto;
+    }
+  }
+</style>
+
 <div class="page-head" style="background: linear-gradient(135deg, #e17055, #fab1a0);">
   <h1 style="margin:0;">Stage 4: Analytics &amp; Directives</h1>
+  <p style="margin:0.5rem 0 0;color:#fff7ed;max-width:60rem;">Placeholder analytics for generated and posted videos. Real performance numbers appear here once the pipeline collects them; until then, the dashboard shows which videos are still waiting on their first pull.</p>
 </div>
+
+<div class="analytics-grid">
+  {% for card in analytics_summary_cards %}
+  <div class="analytics-card">
+    <p class="muted" style="margin:0;">{{ card.label }}</p>
+    <div class="analytics-value">{{ card.value }}</div>
+    <p class="muted" style="margin:0;">{{ card.detail }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+{% if latest_video_metrics %}
+<div class="spotlight">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
+      <div>
+        <p class="muted" style="margin:0;">Latest video spotlight</p>
+        <h3 style="margin:0.2rem 0 0;">{{ latest_video_metrics.get('product_title') or latest_video_metrics.get('run_id') or 'Recent generated video' }}</h3>
+      </div>
+      <span class="placeholder-pill">{{ latest_video_snapshot.get('metric_state') }}</span>
+    </div>
+    <p class="muted" style="margin:0.6rem 0 0;">Run: <code>{{ latest_video_metrics.get('run_id') or 'artifact only' }}</code> • Status: <strong>{{ (latest_video_metrics.get('status') or 'unknown')|upper }}</strong></p>
+    <p class="muted" style="margin:0.25rem 0 0;">Template: <code>{{ latest_video_metrics.get('selected_template_id') or 'n/a' }}</code> • Updated: {{ latest_video_metrics.get('updated_at') or latest_video_metrics.get('finished_at') or 'n/a' }}</p>
+    {% if latest_video_metrics.get('post_url') %}
+    <p style="margin:0.75rem 0 0;"><strong>Post URL:</strong> <a href="{{ latest_video_metrics.get('post_url') }}" target="_blank" rel="noreferrer">{{ latest_video_metrics.get('post_url') }}</a></p>
+    {% endif %}
+    <div class="metrics-row">
+      <div class="metric-tile">
+        <p class="muted" style="margin:0;">Views</p>
+        <div style="font-size:1.45rem;font-weight:800;">{{ latest_video_snapshot.get('views', 0) }}</div>
+      </div>
+      <div class="metric-tile">
+        <p class="muted" style="margin:0;">Likes</p>
+        <div style="font-size:1.45rem;font-weight:800;">{{ latest_video_snapshot.get('likes', 0) }}</div>
+      </div>
+      <div class="metric-tile">
+        <p class="muted" style="margin:0;">Comments</p>
+        <div style="font-size:1.45rem;font-weight:800;">{{ latest_video_snapshot.get('comments', 0) }}</div>
+      </div>
+      <div class="metric-tile">
+        <p class="muted" style="margin:0;">Shares</p>
+        <div style="font-size:1.45rem;font-weight:800;">{{ latest_video_snapshot.get('shares', 0) }}</div>
+      </div>
+      <div class="metric-tile">
+        <p class="muted" style="margin:0;">Saves</p>
+        <div style="font-size:1.45rem;font-weight:800;">{{ latest_video_snapshot.get('saves', 0) }}</div>
+      </div>
+      <div class="metric-tile">
+        <p class="muted" style="margin:0;">Replies logged</p>
+        <div style="font-size:1.45rem;font-weight:800;">{{ latest_video_snapshot.get('reply_count', 0) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Pipeline Note</h3>
+    {% if analytics_control_plane_available %}
+    <p class="muted">This page is reading recent pipeline runs and post records from the control plane. When the analytics collector starts writing views/likes/comments, these tiles will switch from placeholder state to real numbers automatically.</p>
+    {% else %}
+    <p class="muted">Control plane metrics are unavailable, so the dashboard is showing local artifact placeholders only.</p>
+    {% endif %}
+    <p class="muted" style="margin-top:1rem;">Current placeholder rule:</p>
+    <ul>
+      <li>Real metrics appear if the run or post record already contains views, likes, comments, shares, or saves.</li>
+      <li>If those fields are still missing, the video is marked <strong>Awaiting first analytics pull</strong>.</li>
+      <li>Comment reply totals still appear immediately because they come from the engagement workflow.</li>
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;gap:1rem;align-items:center;">
+    <div>
+      <h3 style="margin:0;">Recent Video Performance</h3>
+      <p class="muted" style="margin:0.35rem 0 0;">Placeholder table for how well each generated video has done so far.</p>
+    </div>
+  </div>
+  {% if not analytics_rows %}
+  <p class="muted" style="margin-top:1rem;">No generated videos available yet.</p>
+  {% else %}
+  <table class="analytics-table">
+    <thead>
+      <tr>
+        <th>Video</th>
+        <th>Status</th>
+        <th>Performance</th>
+        <th>Engagement</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in analytics_rows %}
+      <tr>
+        <td>
+          <strong>{{ row.get('product_title') or row.get('run_id') or 'Generated video' }}</strong>
+          <p class="muted" style="margin:0.25rem 0 0;"><code>{{ row.get('selected_template_id') or 'n/a' }}</code></p>
+          {% if row.get('post_url') %}
+          <p style="margin:0.35rem 0 0;"><a href="{{ row.get('post_url') }}" target="_blank" rel="noreferrer">Open post</a></p>
+          {% endif %}
+        </td>
+        <td>
+          <strong>{{ (row.get('status') or 'unknown')|upper }}</strong>
+          <p class="muted" style="margin:0.25rem 0 0;">{{ row.get('mode_label') or 'Unknown mode' }}</p>
+          <p class="muted" style="margin:0.25rem 0 0;">{{ row.get('posted_at') or row.get('updated_at') or 'n/a' }}</p>
+        </td>
+        <td>
+          <span class="placeholder-pill">{{ row.get('metric_state') }}</span>
+          <p class="muted" style="margin:0.45rem 0 0;">Views {{ row.get('views', 0) }} • Likes {{ row.get('likes', 0) }} • Comments {{ row.get('comments', 0) }}</p>
+          <p class="muted" style="margin:0.25rem 0 0;">Shares {{ row.get('shares', 0) }} • Saves {{ row.get('saves', 0) }}</p>
+        </td>
+        <td>
+          <strong>{{ (row.get('engagement_status') or 'not_run')|upper }}</strong>
+          <p class="muted" style="margin:0.25rem 0 0;">Replies logged: {{ row.get('engagement_reply_count', 0) }}</p>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+<hr class="sep">
 <h3>Optimization Directives</h3>
 {% if not directives %}
 <p class="muted">No optimization directives generated yet.</p>
@@ -20,6 +226,7 @@
 </div>
 {% endfor %}
 {% endif %}
+
 <hr class="sep">
 <h3>Redo Queue</h3>
 {% if not redo %}

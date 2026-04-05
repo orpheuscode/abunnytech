@@ -70,6 +70,55 @@ def render_demo_bundle_video(
     return target
 
 
+def build_reference_collage_image(
+    *,
+    bundle: GenerationBundle,
+    output_path: str | Path,
+    canvas_size: tuple[int, int] = (1024, 1024),
+) -> Path:
+    """Build one composite reference image that includes both avatar and product assets."""
+
+    width, height = canvas_size
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    avatar = _load_panel_image(bundle.avatar_image_path, (width, height))
+    product = _load_panel_image(bundle.product_image_path, (width, height))
+
+    base = Image.new("RGB", (width, height), color=(18, 18, 24))
+    draw = ImageDraw.Draw(base, "RGBA")
+
+    header_height = int(height * 0.16)
+    body_height = height - header_height - 36
+    left_width = width // 2
+    right_width = width - left_width
+
+    avatar_panel = avatar.resize((left_width - 24, body_height), Image.Resampling.LANCZOS)
+    product_panel = product.resize((right_width - 24, body_height), Image.Resampling.LANCZOS)
+    base.paste(avatar_panel, (12, header_height + 12))
+    base.paste(product_panel, (left_width + 12, header_height + 12))
+
+    draw.rounded_rectangle((20, 20, width - 20, header_height), radius=28, fill=(0, 0, 0, 150))
+    title = (bundle.product_title or "UGC Reference").strip()[:48]
+    title_font = ImageFont.load_default()
+    body_font = ImageFont.load_default()
+    draw.text((40, 42), title, fill=(255, 255, 255), font=title_font)
+
+    prompt_lines = _wrap_text(bundle.creative_brief or bundle.veo_prompt, line_length=52)[:3]
+    y = 72
+    for line in prompt_lines:
+        draw.text((40, y), line, fill=(233, 233, 240), font=body_font)
+        y += 24
+
+    draw.rounded_rectangle((28, height - 90, left_width - 28, height - 28), radius=20, fill=(0, 0, 0, 120))
+    draw.rounded_rectangle((left_width + 28, height - 90, width - 28, height - 28), radius=20, fill=(0, 0, 0, 120))
+    draw.text((48, height - 68), "Avatar reference", fill=(255, 255, 255), font=body_font)
+    draw.text((left_width + 48, height - 68), "Product reference", fill=(255, 255, 255), font=body_font)
+
+    base.save(target, format="JPEG", quality=92)
+    return target
+
+
 def _load_panel_image(image_path: str, size: tuple[int, int]) -> Image.Image:
     try:
         image = Image.open(image_path).convert("RGB")

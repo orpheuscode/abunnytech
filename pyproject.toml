@@ -78,6 +78,7 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13.0",
     "abunny-stage1-discovery",
+    "browser-runtime[browser_use]",
 ]
 
 [tool.pytest.ini_options]

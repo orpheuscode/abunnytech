@@ -10,6 +10,7 @@
 {% for rec in records %}
 {% set st = rec.get('status', 'pending') %}
 {% set meta = {'posted': ('✅', '#00b894'), 'pending': ('⏳', '#fdcb6e'), 'failed': ('❌', '#d63031')}.get(st, ('?', '#636e72')) %}
+{% set engagement = rec.get('engagement_summary') or {} %}
 <div class="card" style="border-left:4px solid {{ meta[1] }};">
   {{ meta[0] }} <strong>{{ (rec.get('platform') or '?')|upper }}</strong> — {{ st }}
   {% if rec.get('dry_run') %}<code>DRY RUN</code>{% endif %}
@@ -17,7 +18,21 @@
     {% if rec.get('posted_at') %}Posted: {{ rec.get('posted_at') }}{% else %}Not yet posted{% endif %}
   </p>
   {% if rec.get('post_url') %}<p class="muted" style="margin:0.25rem 0 0;">URL: <code>{{ rec.get('post_url') }}</code></p>{% endif %}
+  <p class="muted" style="margin:0.25rem 0 0;">Engagement: {{ (engagement.get('status') or 'not_run')|upper }}</p>
+  <p class="muted" style="margin:0.25rem 0 0;">Replies logged: {{ rec.get('engagement_reply_count', 0) }}</p>
+  <p class="muted" style="margin:0.25rem 0 0;">Last engagement: {{ engagement.get('last_run_at') or 'n/a' }}</p>
+  {% if engagement.get('last_reason') %}<p class="muted" style="margin:0.25rem 0 0;">Reason: {{ engagement.get('last_reason') }}</p>{% endif %}
   {% if rec.get('error_message') %}<p style="color:#f87171;margin:0.5rem 0 0;">{{ rec.get('error_message') }}</p>{% endif %}
+  {% if rec.get('recent_replies') %}
+  <div style="margin-top:0.6rem;">
+    <strong>Recent replies</strong>
+    <ul style="margin:0.35rem 0 0;padding-left:1.2rem;">
+      {% for reply in rec.get('recent_replies', []) %}
+      <li class="muted">@{{ reply.get('commenter_handle') or 'unknown' }} -> {{ reply.get('response_text') }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
 </div>
 {% endfor %}
 {% endif %}

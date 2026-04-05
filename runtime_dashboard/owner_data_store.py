@@ -66,3 +66,16 @@ def create_fixture_product(product: dict[str, Any]) -> dict[str, Any]:
     products.insert(0, product)
     save_fixture_collection("product_catalog", products)
     return product
+
+
+def delete_fixture_product(*, name: str, image_url: str = "") -> dict[str, Any] | None:
+    products = list(load_fixture_collection("product_catalog"))
+    for index, product in enumerate(products):
+        if str(product.get("name") or "") != name:
+            continue
+        if image_url and str(product.get("image_url") or "") != image_url:
+            continue
+        removed = products.pop(index)
+        save_fixture_collection("product_catalog", products)
+        return removed
+    return None

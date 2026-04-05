@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from browser_runtime.providers.base import BrowserProvider
+from browser_runtime.providers.browser_use import BrowserUseBrowserConfig, BrowserUseProvider
 from browser_runtime.providers.mock import MockProvider
+from packages.shared.browser_runtime_config import (
+    ENV_BROWSER_USE_CDP_URL,
+    ENV_BROWSER_USE_HEADLESS,
+    ENV_CHROME_EXECUTABLE_PATH,
+    ENV_CHROME_PROFILE_DIRECTORY,
+    ENV_CHROME_USER_DATA_DIR,
+    build_effective_browser_runtime_env,
+)
 
 from hackathon_pipelines.adapters.facade import BrowserProviderFacade
 from hackathon_pipelines.adapters.live_api import GeminiTemplateAgent, TwelveLabsUnderstanding, VeoVideoGenerator
@@ -18,7 +29,7 @@ from hackathon_pipelines.browseruse_instascrape import (
     load_reel_surface_metrics_from_instascrape,
     make_instascrape_metrics_loader,
 )
-from hackathon_pipelines.contracts import OrchestratorRunSummary
+from hackathon_pipelines.contracts import OrchestratorRunSummary, VeoGenerationConfig, VeoPromptPackage
 from hackathon_pipelines.gemini_tool_orchestrator import (
     GeminiOrchestrationResult,
     dispatch_pipeline_tool,
@@ -33,6 +44,7 @@ from hackathon_pipelines.pipelines.video_generation import VideoGenerationPipeli
 from hackathon_pipelines.ports import (
     AnalyticsSinkPort,
     GeminiVideoAgentPort,
+    PostedContentSinkPort,
     ProductCatalogPort,
     ReelMetadataSinkPort,
     TemplateStorePort,
@@ -45,7 +57,10 @@ from hackathon_pipelines.prototype_bridge import (
     MARKETING_SYNTHESIS_SYSTEM_PROMPT,
     MarketingVideoAnalysis,
     append_marketing_analysis_csv,
+    build_fallback_veo_user_prompt,
     build_locked_reference_veo_prompt,
+    build_single_concept_veo_user_prompt_request,
+    build_veo_prompt_package,
     build_weighted_marketing_synthesis_prompt,
     dump_analysis_json,
     export_analysis_json,
@@ -53,6 +68,7 @@ from hackathon_pipelines.prototype_bridge import (
     parse_action_hook_music_sections,
     run_gemini_marketing_synthesis,
     write_locked_veo_prompt_files,
+    write_veo_prompt_package_files,
 )
 from hackathon_pipelines.scoring import (
     DEFAULT_PRODUCT_SCORE_WEIGHTS,
@@ -64,11 +80,13 @@ from hackathon_pipelines.scoring import (
 )
 from hackathon_pipelines.stores import (
     MemoryAnalyticsSink,
+    MemoryPostedContentSink,
     MemoryProductCatalog,
     MemoryReelSink,
     MemoryTemplateStore,
     SQLiteAnalyticsSink,
     SQLiteHackathonStore,
+    SQLitePostedContentSink,
     SQLiteProductCatalog,
     SQLiteReelSink,
     SQLiteTemplateStore,
@@ -80,17 +98,75 @@ class DryRunStack:
     orchestrator: HackathonOrchestrator
     templates: MemoryTemplateStore
     analytics: MemoryAnalyticsSink
+    posted_content: MemoryPostedContentSink
     products: MemoryProductCatalog
 
 
 @dataclass(frozen=True)
 class RuntimeStack:
     orchestrator: HackathonOrchestrator
+    browser: BrowserProviderFacade
+    social: SocialMediaPipeline
+    gemini: GeminiVideoAgentPort
+    veo: VeoGeneratorPort
+    video_understanding: VideoUnderstandingPort
     templates: TemplateStorePort
     analytics: AnalyticsSinkPort
+    posted_content: PostedContentSinkPort
     products: ProductCatalogPort
     reels: ReelMetadataSinkPort
+    store: SQLiteHackathonStore
     store_path: Path
+
+
+def _build_live_browser_provider(
+    *,
+    browser_runtime_env: Mapping[str, str] | None = None,
+) -> BrowserProvider:
+    from packages.shared.config import get_settings
+
+    settings = get_settings()
+    runtime_env = build_effective_browser_runtime_env(
+        saved={
+            ENV_BROWSER_USE_CDP_URL: settings.browser_use_cdp_url,
+            ENV_BROWSER_USE_HEADLESS: str(settings.browser_use_headless).lower(),
+            ENV_CHROME_EXECUTABLE_PATH: settings.chrome_executable_path,
+            ENV_CHROME_USER_DATA_DIR: settings.chrome_user_data_dir,
+            ENV_CHROME_PROFILE_DIRECTORY: settings.chrome_profile_directory,
+        },
+        environ=browser_runtime_env or os.environ,
+    )
+    extra_kwargs: dict[str, object] = {}
+    use_cdp = bool(runtime_env.get(ENV_BROWSER_USE_CDP_URL))
+    if (
+        not use_cdp
+        and runtime_env.get(ENV_CHROME_EXECUTABLE_PATH)
+        and runtime_env.get(ENV_CHROME_USER_DATA_DIR)
+        and runtime_env.get(ENV_CHROME_PROFILE_DIRECTORY)
+    ):
+        # Local copied Chrome profiles are more stable for Instagram posting without Browser Use's extra extensions.
+        extra_kwargs["enable_default_extensions"] = False
+    browser_config = BrowserUseBrowserConfig(
+        cdp_url=runtime_env.get(ENV_BROWSER_USE_CDP_URL) or None,
+        headless=(runtime_env.get(ENV_BROWSER_USE_HEADLESS, "false").lower() == "true"),
+        executable_path=None if use_cdp else runtime_env.get(ENV_CHROME_EXECUTABLE_PATH) or None,
+        user_data_dir=None if use_cdp else runtime_env.get(ENV_CHROME_USER_DATA_DIR) or None,
+        profile_directory=None if use_cdp else runtime_env.get(ENV_CHROME_PROFILE_DIRECTORY) or None,
+        keep_alive=True,
+        extra_kwargs=extra_kwargs,
+    )
+    if not browser_config.to_browser_kwargs():
+        msg = (
+            "Live Browser Use requires BROWSER_USE_CDP_URL or "
+            "CHROME_EXECUTABLE_PATH + CHROME_USER_DATA_DIR + CHROME_PROFILE_DIRECTORY. "
+            "Set them in the environment or Dashboard Runtime Setup."
+        )
+        raise RuntimeError(msg)
+    return BrowserUseProvider(
+        llm_model="ChatBrowserUse",
+        dry_run=False,
+        browser_config=browser_config,
+    )
 
 
 def build_dry_run_stack() -> DryRunStack:
@@ -99,6 +175,7 @@ def build_dry_run_stack() -> DryRunStack:
     browser = BrowserProviderFacade(MockProvider(dry_run=True))
     templates = MemoryTemplateStore()
     analytics = MemoryAnalyticsSink()
+    posted_content = MemoryPostedContentSink()
     reels = ReelDiscoveryPipeline(
         browser=browser,
         video_understanding=TwelveLabsUnderstanding(dry_run=True),
@@ -115,6 +192,7 @@ def build_dry_run_stack() -> DryRunStack:
     social = SocialMediaPipeline(
         browser=browser,
         analytics_sink=analytics,
+        posted_content_sink=posted_content,
         templates=templates,
     )
     orch = HackathonOrchestrator(
@@ -128,6 +206,7 @@ def build_dry_run_stack() -> DryRunStack:
         orchestrator=orch,
         templates=templates,
         analytics=analytics,
+        posted_content=posted_content,
         products=product_catalog,
     )
 
@@ -141,6 +220,7 @@ def build_runtime_stack(
     dry_run: bool = True,
     db_path: str | Path = Path("data") / "hackathon_pipelines.sqlite3",
     instascrape_db_path: str | Path | None = None,
+    browser_runtime_env: Mapping[str, str] | None = None,
     browser_provider: BrowserProvider | None = None,
     video_understanding: VideoUnderstandingPort | None = None,
     gemini: GeminiVideoAgentPort | None = None,
@@ -159,38 +239,40 @@ def build_runtime_stack(
         if dry_run:
             browser_provider = MockProvider(dry_run=True)
         else:
-            msg = "Inject a live Browser Use provider once the team snippet is ready."
-            raise RuntimeError(msg)
-
-    if veo is None and not dry_run:
-        msg = "Inject a live Veo generator once the team snippet is ready."
-        raise RuntimeError(msg)
+            browser_provider = _build_live_browser_provider(browser_runtime_env=browser_runtime_env)
 
     store = SQLiteHackathonStore(resolved_db_path)
     browser = BrowserProviderFacade(browser_provider)
+    resolved_video_understanding = video_understanding or TwelveLabsUnderstanding(dry_run=dry_run)
+    resolved_gemini = gemini or GeminiTemplateAgent(dry_run=dry_run)
+    resolved_veo = veo or VeoVideoGenerator(dry_run=dry_run)
     templates = SQLiteTemplateStore(store=store)
     analytics = SQLiteAnalyticsSink(store=store)
+    posted_content = SQLitePostedContentSink(store=store)
     reels = SQLiteReelSink(store=store)
     products = SQLiteProductCatalog(store=store)
     reels_pipeline = ReelDiscoveryPipeline(
         browser=browser,
-        video_understanding=video_understanding or TwelveLabsUnderstanding(dry_run=dry_run),
+        video_understanding=resolved_video_understanding,
         templates=templates,
         reel_sink=reels,
-        gemini=gemini or GeminiTemplateAgent(dry_run=dry_run),
+        gemini=resolved_gemini,
+        browser_runtime_env=browser_runtime_env,
         seed_metrics_loader=(
             make_instascrape_metrics_loader(instascrape_db_path) if instascrape_db_path is not None else None
         ),
     )
     products_pipeline = ProductDiscoveryPipeline(browser=browser, catalog=products)
     video_pipeline = VideoGenerationPipeline(
-        gemini=gemini or GeminiTemplateAgent(dry_run=dry_run),
-        veo=veo or VeoVideoGenerator(dry_run=True),
+        gemini=resolved_gemini,
+        veo=resolved_veo,
     )
     social = SocialMediaPipeline(
         browser=browser,
         analytics_sink=analytics,
+        posted_content_sink=posted_content,
         templates=templates,
+        browser_runtime_env=browser_runtime_env,
     )
     orchestrator = HackathonOrchestrator(
         reel_discovery=reels_pipeline,
@@ -201,10 +283,17 @@ def build_runtime_stack(
     )
     return RuntimeStack(
         orchestrator=orchestrator,
+        browser=browser,
+        social=social,
+        gemini=resolved_gemini,
+        veo=resolved_veo,
+        video_understanding=resolved_video_understanding,
         templates=templates,
         analytics=analytics,
+        posted_content=posted_content,
         products=products,
         reels=reels,
+        store=store,
         store_path=resolved_db_path,
     )
 
@@ -242,10 +331,15 @@ __all__ = [
     "TwelveLabsUnderstanding",
     "VideoGenerationPipeline",
     "VeoVideoGenerator",
+    "VeoGenerationConfig",
+    "VeoPromptPackage",
     "ACTION_HOOK_MUSIC_ANALYSIS_PROMPT",
     "append_marketing_analysis_csv",
     "best_product",
+    "build_fallback_veo_user_prompt",
     "build_locked_reference_veo_prompt",
+    "build_single_concept_veo_user_prompt_request",
+    "build_veo_prompt_package",
     "build_weighted_marketing_synthesis_prompt",
     "build_dry_run_orchestrator",
     "build_dry_run_stack",
@@ -263,5 +357,6 @@ __all__ = [
     "run_gemini_marketing_synthesis",
     "run_gemini_pipeline_orchestration",
     "score_product",
+    "write_veo_prompt_package_files",
     "write_locked_veo_prompt_files",
 ]

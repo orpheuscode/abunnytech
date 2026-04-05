@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -10,11 +11,13 @@ from typing import Any
 import structlog
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from hackathon_pipelines.contracts import CommentEngagementPersona
 from pydantic import BaseModel, Field
 
 from packages.shared.config import get_settings
 from packages.shared.db import init_db
 from packages.shared.feature_flags import is_dry_run, is_enabled
+from services.control_plane.database_explorer import discover_databases, get_database_detail
 
 log = structlog.get_logger(__name__)
 
@@ -29,11 +32,17 @@ async def lifespan(app: FastAPI):
     )
     await init_db()
     app.state.hackathon_loop_runner = None
+    app.state.instant_demo_tasks = set()
     log.info("control_plane.db_initialized")
     yield
     runner = getattr(app.state, "hackathon_loop_runner", None)
     if runner is not None and runner.is_running:
         await runner.stop()
+    instant_demo_tasks = getattr(app.state, "instant_demo_tasks", set())
+    if instant_demo_tasks:
+        for task in list(instant_demo_tasks):
+            task.cancel()
+        await asyncio.gather(*instant_demo_tasks, return_exceptions=True)
     log.info("control_plane.shutdown")
 
 
@@ -89,14 +98,30 @@ async def health() -> dict[str, Any]:
     }
 
 
+class BrowserRuntimeRequest(BaseModel):
+    cdp_url: str | None = None
+    chrome_executable_path: str | None = None
+    chrome_user_data_dir: str | None = None
+    chrome_profile_directory: str | None = None
+    headless: bool | None = None
+
+
 class HackathonDemoRequest(BaseModel):
     dry_run: bool | None = None
     niche_query: str | None = None
     caption: str | None = None
     product_image_path: str | None = None
     avatar_image_path: str | None = None
+    product_title: str | None = None
+    product_description: str | None = None
+    engagement_persona: CommentEngagementPersona | None = None
     media_path: str | None = None
     db_path: str | None = None
+    browser_runtime: BrowserRuntimeRequest | None = None
+
+
+class InstantDemoRequest(HackathonDemoRequest):
+    start_background_generation: bool = True
 
 
 class HackathonLoopRequest(BaseModel):
@@ -106,18 +131,51 @@ class HackathonLoopRequest(BaseModel):
     niche_query: str | None = None
     caption: str | None = None
     workdir: str | None = None
+    browser_runtime: BrowserRuntimeRequest | None = None
 
 
 class GeminiOrchestrationRequest(BaseModel):
-    instruction: str = "Run the full pipeline end to end."
+    instruction: str = (
+        "Run the full storefront pipeline end to end: discover winning reels, build templates, "
+        "pick the best product, generate the video, publish it, engage comments when live, and "
+        "feed analytics back into the template store."
+    )
     dry_run: bool | None = None
     niche_query: str | None = None
     caption: str | None = None
     product_image_path: str | None = None
     avatar_image_path: str | None = None
+    product_title: str | None = None
+    product_description: str | None = None
     media_path: str | None = None
     db_path: str | None = None
     max_turns: int = Field(default=12, ge=1, le=30)
+    browser_runtime: BrowserRuntimeRequest | None = None
+
+
+class PostLatestRunRequest(BaseModel):
+    dry_run: bool | None = None
+    run_id: str | None = None
+    db_path: str | None = None
+    browser_runtime: BrowserRuntimeRequest | None = None
+
+
+class EngageLatestRunRequest(BaseModel):
+    dry_run: bool | None = None
+    run_id: str | None = None
+    db_path: str | None = None
+    browser_runtime: BrowserRuntimeRequest | None = None
+
+
+class GenerateVideoFromDbRequest(BaseModel):
+    dry_run: bool | None = None
+    product_image_path: str | None = None
+    avatar_image_path: str | None = None
+    product_title: str | None = None
+    product_description: str | None = None
+    engagement_persona: CommentEngagementPersona | None = None
+    db_path: str | None = None
+    browser_runtime: BrowserRuntimeRequest | None = None
 
 
 def _ensure_asset(path_str: str, *, dry_run: bool) -> str:
@@ -149,7 +207,35 @@ def _hackathon_defaults(payload: HackathonDemoRequest, *, dry_run: bool) -> dict
     }
 
 
-def _build_hackathon_stack(*, dry_run: bool, db_path: str | None):
+def _browser_runtime_env_from_request(
+    browser_runtime: BrowserRuntimeRequest | None,
+) -> dict[str, str] | None:
+    if browser_runtime is None:
+        return None
+    payload = browser_runtime.model_dump(exclude_none=True)
+    if not payload:
+        return None
+
+    env: dict[str, str] = {}
+    if payload.get("cdp_url"):
+        env["BROWSER_USE_CDP_URL"] = str(payload["cdp_url"])
+    if payload.get("chrome_executable_path"):
+        env["CHROME_EXECUTABLE_PATH"] = str(payload["chrome_executable_path"])
+    if payload.get("chrome_user_data_dir"):
+        env["CHROME_USER_DATA_DIR"] = str(payload["chrome_user_data_dir"])
+    if payload.get("chrome_profile_directory"):
+        env["CHROME_PROFILE_DIRECTORY"] = str(payload["chrome_profile_directory"])
+    if "headless" in payload:
+        env["BROWSER_USE_HEADLESS"] = str(bool(payload["headless"])).lower()
+    return env or None
+
+
+def _build_hackathon_stack(
+    *,
+    dry_run: bool,
+    db_path: str | None,
+    browser_runtime: BrowserRuntimeRequest | None = None,
+):
     from hackathon_pipelines import build_runtime_stack
 
     settings = get_settings()
@@ -157,42 +243,141 @@ def _build_hackathon_stack(*, dry_run: bool, db_path: str | None):
         return build_runtime_stack(
             dry_run=dry_run,
             db_path=db_path or settings.hackathon_pipeline_db_path,
+            browser_runtime_env=_browser_runtime_env_from_request(browser_runtime),
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _run_record_payload(record) -> dict[str, Any]:
+    from hackathon_pipelines.dashboard_workflow import serialize_run_for_dashboard
+
+    payload = serialize_run_for_dashboard(record)
+    return payload or {}
+
+
+def _track_instant_demo_task(task: asyncio.Task[Any]) -> None:
+    task_set = getattr(app.state, "instant_demo_tasks", None)
+    if task_set is None:
+        task_set = set()
+        app.state.instant_demo_tasks = task_set
+    task_set.add(task)
+    task.add_done_callback(task_set.discard)
+
+
 @app.post("/pipeline/demo")
 async def run_demo_pipeline(payload: HackathonDemoRequest | None = None) -> dict[str, Any]:
-    from hackathon_pipelines.contracts import ClosedLoopRunSummary
+    from hackathon_pipelines.dashboard_workflow import run_dashboard_pipeline
 
     settings = get_settings()
     request = payload or HackathonDemoRequest()
     dry_run = settings.dry_run if request.dry_run is None else request.dry_run
     assets = _hackathon_defaults(request, dry_run=dry_run)
-    stack = _build_hackathon_stack(dry_run=dry_run, db_path=request.db_path)
-    summary: ClosedLoopRunSummary = await stack.orchestrator.run_closed_loop_cycle(
+    stack = _build_hackathon_stack(
+        dry_run=dry_run,
+        db_path=request.db_path,
+        browser_runtime=request.browser_runtime,
+    )
+    browser_runtime_env = _browser_runtime_env_from_request(request.browser_runtime)
+    run_record = await run_dashboard_pipeline(
+        store=stack.store,
+        browser=stack.browser,
+        video_understanding=stack.video_understanding,
+        gemini=stack.gemini,
+        veo=stack.veo,
         product_image_path=assets["product_image_path"],
         avatar_image_path=assets["avatar_image_path"],
-        niche_query=request.niche_query or settings.hackathon_niche_query,
-        caption=request.caption or settings.hackathon_default_caption,
-        media_path=assets["media_path"],
         dry_run=dry_run,
+        product_title=request.product_title,
+        product_description=request.product_description,
+        engagement_persona=request.engagement_persona,
+        browser_runtime_env=browser_runtime_env,
     )
     return {
-        "demo_complete": True,
-        "pipeline": "hackathon_closed_loop",
+        "demo_complete": run_record.status.value != "failed",
+        "pipeline": "hackathon_generate_ready",
         "dry_run": dry_run,
         "db_path": str(stack.store_path),
         "product_image_path": assets["product_image_path"],
         "avatar_image_path": assets["avatar_image_path"],
-        "media_path": summary.media_path,
-        "summary": summary.model_dump(mode="json"),
+        "media_path": run_record.video_path,
+        "run": _run_record_payload(run_record),
+    }
+
+
+@app.post("/pipeline/demo-mode")
+async def run_instant_demo_mode(payload: InstantDemoRequest | None = None) -> dict[str, Any]:
+    from hackathon_pipelines.dashboard_workflow import (
+        run_parallel_demo_mode,
+    )
+
+    settings = get_settings()
+    request = payload or InstantDemoRequest()
+    dry_run = settings.dry_run if request.dry_run is None else request.dry_run
+    assets = _hackathon_defaults(request, dry_run=dry_run)
+    browser_runtime_env = _browser_runtime_env_from_request(request.browser_runtime)
+    stack = _build_hackathon_stack(
+        dry_run=dry_run,
+        db_path=request.db_path,
+        browser_runtime=request.browser_runtime,
+    )
+    notes: list[str] = []
+    lanes = [
+        "reel_discovery_to_video_structure",
+        "video_structure_to_video_gen_and_instagram_posting",
+        "comment_engagement",
+    ]
+    background_generation_started = False
+    if request.start_background_generation:
+
+        async def _run_parallel_demo_lanes() -> None:
+            try:
+                await run_parallel_demo_mode(
+                    store=stack.store,
+                    browser=stack.browser,
+                    video_understanding=stack.video_understanding,
+                    gemini=stack.gemini,
+                    veo=stack.veo,
+                    social=stack.social,
+                    product_image_path=assets["product_image_path"],
+                    avatar_image_path=assets["avatar_image_path"],
+                    dry_run=dry_run,
+                    product_title=request.product_title,
+                    product_description=request.product_description,
+                    engagement_persona=request.engagement_persona,
+                    browser_runtime_env=browser_runtime_env,
+                )
+            except Exception:
+                log.exception("control_plane.instant_demo.parallel_demo_mode_failed")
+
+        task = asyncio.create_task(
+            _run_parallel_demo_lanes(),
+            name="instant-demo-parallel-lanes",
+        )
+        _track_instant_demo_task(task)
+        background_generation_started = True
+        notes.append(
+            "Started three parallel demo lanes: reel discovery -> video structure, "
+            "video structure -> video gen + Instagram posting, and comment engagement."
+        )
+    else:
+        notes.append("Instant demo mode was requested without starting the parallel background lanes.")
+
+    return {
+        "ok": True,
+        "pipeline": "instant_demo_mode",
+        "dry_run": dry_run,
+        "db_path": str(stack.store_path),
+        "background_generation_started": background_generation_started,
+        "parallel_lanes": lanes,
+        "notes": notes,
     }
 
 
 @app.post("/pipeline/gemini-orchestrate")
-async def run_gemini_orchestration(payload: GeminiOrchestrationRequest | None = None) -> dict[str, Any]:
+async def run_gemini_orchestration(
+    payload: GeminiOrchestrationRequest | None = None,
+) -> dict[str, Any]:
     from hackathon_pipelines import run_gemini_pipeline_orchestration
 
     settings = get_settings()
@@ -210,7 +395,11 @@ async def run_gemini_orchestration(payload: GeminiOrchestrationRequest | None = 
         ),
         dry_run=dry_run,
     )
-    stack = _build_hackathon_stack(dry_run=dry_run, db_path=request.db_path)
+    stack = _build_hackathon_stack(
+        dry_run=dry_run,
+        db_path=request.db_path,
+        browser_runtime=request.browser_runtime,
+    )
     instruction = (
         f"{request.instruction.strip()}\n\n"
         "When tool parameters are required, use these exact values:\n"
@@ -237,6 +426,210 @@ async def run_gemini_orchestration(payload: GeminiOrchestrationRequest | None = 
         "final_text": result.final_text,
         "tool_trace": result.tool_trace,
         "turns_used": result.turns_used,
+    }
+
+
+@app.get("/pipeline/latest-run")
+async def latest_pipeline_run(db_path: str | None = None) -> dict[str, Any]:
+    from hackathon_pipelines.stores.sqlite_store import SQLiteHackathonStore
+
+    settings = get_settings()
+    store = SQLiteHackathonStore(db_path or settings.hackathon_pipeline_db_path)
+    record = store.latest_run()
+    return {
+        "ok": record is not None,
+        "db_path": str(store.db_path),
+        "run": _run_record_payload(record) if record is not None else None,
+    }
+
+
+@app.get("/pipeline/runs")
+async def list_pipeline_runs(db_path: str | None = None, limit: int = 20) -> dict[str, Any]:
+    from hackathon_pipelines.stores.sqlite_store import SQLiteHackathonStore
+
+    settings = get_settings()
+    store = SQLiteHackathonStore(db_path or settings.hackathon_pipeline_db_path)
+    normalized_limit = max(1, min(limit, 100))
+    runs = [_run_record_payload(record) for record in store.list_runs()[:normalized_limit]]
+    return {
+        "ok": True,
+        "db_path": str(store.db_path),
+        "count": len(runs),
+        "runs": runs,
+    }
+
+
+@app.get("/pipeline/posts")
+async def list_pipeline_posts(db_path: str | None = None) -> dict[str, Any]:
+    from hackathon_pipelines.dashboard_workflow import serialize_post_for_dashboard
+    from hackathon_pipelines.stores.sqlite_store import SQLiteHackathonStore
+
+    settings = get_settings()
+    store = SQLiteHackathonStore(db_path or settings.hackathon_pipeline_db_path)
+    posts = [
+        serialize_post_for_dashboard(
+            record,
+            replies=store.list_comment_replies(record.post_url),
+        )
+        for record in store.list_posted_content()
+    ]
+    return {
+        "ok": True,
+        "db_path": str(store.db_path),
+        "posts": posts,
+    }
+
+
+@app.get("/pipeline/runs/{run_id}")
+async def get_pipeline_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
+    from hackathon_pipelines.stores.sqlite_store import SQLiteHackathonStore
+
+    settings = get_settings()
+    store = SQLiteHackathonStore(db_path or settings.hackathon_pipeline_db_path)
+    record = store.get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Pipeline run not found.")
+    return {
+        "ok": True,
+        "db_path": str(store.db_path),
+        "run": _run_record_payload(record),
+    }
+
+
+@app.post("/pipeline/post-latest")
+async def post_latest_pipeline_run(payload: PostLatestRunRequest | None = None) -> dict[str, Any]:
+    from hackathon_pipelines.dashboard_workflow import post_latest_run
+    from hackathon_pipelines.stores.sqlite_store import SQLiteHackathonStore
+
+    settings = get_settings()
+    request = payload or PostLatestRunRequest()
+    dry_run = False if request.dry_run is None else request.dry_run
+    store = SQLiteHackathonStore(request.db_path or settings.hackathon_pipeline_db_path)
+    stack = _build_hackathon_stack(
+        dry_run=dry_run,
+        db_path=str(store.db_path),
+        browser_runtime=request.browser_runtime,
+    )
+    try:
+        record, output = await post_latest_run(
+            store=store,
+            social=stack.social,
+            dry_run=dry_run,
+            run_id=request.run_id,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "ok": True,
+        "dry_run": dry_run,
+        "db_path": str(store.db_path),
+        "run": _run_record_payload(record),
+        "publish_output": output,
+    }
+
+
+@app.post("/pipeline/generate-video")
+async def generate_video_pipeline_run(payload: GenerateVideoFromDbRequest | None = None) -> dict[str, Any]:
+    from hackathon_pipelines.dashboard_workflow import generate_video_from_structure_db
+
+    settings = get_settings()
+    request = payload or GenerateVideoFromDbRequest()
+    dry_run = settings.dry_run if request.dry_run is None else request.dry_run
+    assets = _hackathon_defaults(
+        HackathonDemoRequest(
+            dry_run=dry_run,
+            product_image_path=request.product_image_path,
+            avatar_image_path=request.avatar_image_path,
+        ),
+        dry_run=dry_run,
+    )
+    stack = _build_hackathon_stack(
+        dry_run=dry_run,
+        db_path=request.db_path,
+        browser_runtime=request.browser_runtime,
+    )
+    try:
+        record = await generate_video_from_structure_db(
+            store=stack.store,
+            gemini=stack.gemini,
+            veo=stack.veo,
+            product_image_path=assets["product_image_path"],
+            avatar_image_path=assets["avatar_image_path"],
+            dry_run=dry_run,
+            product_title=request.product_title,
+            product_description=request.product_description,
+            engagement_persona=request.engagement_persona,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "ok": record.status != "failed",
+        "dry_run": dry_run,
+        "db_path": str(stack.store_path),
+        "product_image_path": assets["product_image_path"],
+        "avatar_image_path": assets["avatar_image_path"],
+        "media_path": record.video_path,
+        "run": _run_record_payload(record),
+    }
+
+
+@app.post("/pipeline/engage-latest")
+async def engage_latest_pipeline_run(
+    payload: EngageLatestRunRequest | None = None,
+) -> dict[str, Any]:
+    from hackathon_pipelines.dashboard_workflow import engage_latest_posted_run
+    from hackathon_pipelines.stores.sqlite_store import SQLiteHackathonStore
+
+    settings = get_settings()
+    request = payload or EngageLatestRunRequest()
+    dry_run = settings.dry_run if request.dry_run is None else request.dry_run
+    store = SQLiteHackathonStore(request.db_path or settings.hackathon_pipeline_db_path)
+    stack = _build_hackathon_stack(
+        dry_run=dry_run,
+        db_path=str(store.db_path),
+        browser_runtime=request.browser_runtime,
+    )
+    try:
+        record, summary = await engage_latest_posted_run(
+            store=store,
+            social=stack.social,
+            dry_run=dry_run,
+            run_id=request.run_id,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "ok": True,
+        "dry_run": dry_run,
+        "db_path": str(store.db_path),
+        "run": _run_record_payload(record),
+        "engagement_summary": summary.model_dump(mode="json"),
+    }
+
+
+@app.get("/pipeline/databases")
+async def list_pipeline_databases() -> dict[str, Any]:
+    settings = get_settings()
+    return {
+        "ok": True,
+        "databases": discover_databases(settings),
+    }
+
+
+@app.get("/pipeline/databases/{db_key}")
+async def database_detail(
+    db_key: str, table: str | None = None, page: int = 1, page_size: int = 20
+) -> dict[str, Any]:
+    settings = get_settings()
+    try:
+        detail = get_database_detail(
+            settings, db_key=db_key, table=table, page=page, page_size=page_size
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "ok": True,
+        "database": detail,
     }
 
 
@@ -363,10 +756,16 @@ async def start_hackathon_loop(payload: HackathonLoopRequest | None = None) -> d
 
     request = payload or HackathonLoopRequest()
     dry_run = settings.dry_run if request.dry_run is None else request.dry_run
-    stack = _build_hackathon_stack(dry_run=dry_run, db_path=None)
+    stack = _build_hackathon_stack(
+        dry_run=dry_run,
+        db_path=None,
+        browser_runtime=request.browser_runtime,
+    )
     config = LoopRunnerConfig(
         interval_seconds=request.interval_seconds or settings.hackathon_loop_interval_seconds,
-        max_cycles=request.max_cycles if request.max_cycles is not None else settings.hackathon_loop_max_cycles,
+        max_cycles=request.max_cycles
+        if request.max_cycles is not None
+        else settings.hackathon_loop_max_cycles,
         dry_run=dry_run,
         niche_query=request.niche_query or settings.hackathon_niche_query,
         caption=request.caption or settings.hackathon_default_caption,

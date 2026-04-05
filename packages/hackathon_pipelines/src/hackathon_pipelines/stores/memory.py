@@ -6,7 +6,10 @@ import uuid
 from datetime import UTC, datetime
 
 from hackathon_pipelines.contracts import (
+    CommentEngagementSummary,
+    CommentReplyRecord,
     PostAnalyticsSnapshot,
+    PostedContentRecord,
     ProductCandidate,
     ReelSurfaceMetrics,
     VideoStructureRecord,
@@ -14,6 +17,7 @@ from hackathon_pipelines.contracts import (
 )
 from hackathon_pipelines.ports import (
     AnalyticsSinkPort,
+    PostedContentSinkPort,
     ProductCatalogPort,
     ReelMetadataSinkPort,
     TemplateStorePort,
@@ -69,6 +73,50 @@ class MemoryAnalyticsSink(AnalyticsSinkPort):
 
     def persist_post_analytics(self, snapshot: PostAnalyticsSnapshot) -> None:
         self.snapshots.append(snapshot)
+
+
+class MemoryPostedContentSink(PostedContentSinkPort):
+    def __init__(self) -> None:
+        self.records: dict[str, PostedContentRecord] = {}
+        self.comment_replies: dict[str, CommentReplyRecord] = {}
+
+    def persist_posted_content(self, record: PostedContentRecord) -> None:
+        self.records[record.post_url] = record
+
+    def list_posted_content(self) -> list[PostedContentRecord]:
+        return sorted(
+            self.records.values(),
+            key=lambda record: (record.posted_at, record.post_url),
+            reverse=True,
+        )
+
+    def get_posted_content(self, post_url: str) -> PostedContentRecord | None:
+        return self.records.get(post_url)
+
+    def update_posted_content_engagement(
+        self,
+        post_url: str,
+        summary: CommentEngagementSummary,
+    ) -> PostedContentRecord | None:
+        record = self.records.get(post_url)
+        if record is None:
+            return None
+        updated = record.model_copy(update={"engagement_summary": summary})
+        self.records[post_url] = updated
+        return updated
+
+    def persist_comment_reply(self, record: CommentReplyRecord) -> None:
+        self.comment_replies[record.reply_id] = record
+
+    def list_comment_replies(self, post_url: str | None = None) -> list[CommentReplyRecord]:
+        replies = list(self.comment_replies.values())
+        if post_url is not None:
+            replies = [reply for reply in replies if reply.post_url == post_url]
+        return sorted(
+            replies,
+            key=lambda reply: (reply.created_at, reply.reply_id),
+            reverse=True,
+        )
 
 
 def new_id(prefix: str) -> str:

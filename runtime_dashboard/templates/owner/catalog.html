@@ -59,10 +59,23 @@
     </div>
     <div>
       <strong>{{ prod.get('name', 'Unnamed Product') }}</strong> - ${{ "%.2f"|format((prod.get('price_cents', 0) or 0) / 100) }}
-      <span style="float:right;">{% if prod.get('active') %}Live{% else %}Hidden{% endif %}</span>
+      <span style="float:right;">{% if prod.get('selected') %}<span style="color:#86efac;">Selected</span>{% else %}{% if prod.get('active') %}Live{% else %}Hidden{% endif %}{% endif %}</span>
       <p class="muted" style="margin:0.35rem 0 0;">{{ prod.get('description', '') }}</p>
       {% if prod.get('url') %}<p class="muted" style="margin:0.25rem 0 0;">{{ prod.get('url') }}</p>{% endif %}
       {% if prod.get('affiliate_code') %}<p class="muted" style="margin:0.25rem 0 0;">Code: <code>{{ prod.get('affiliate_code') }}</code></p>{% endif %}
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;">
+        <form method="post" action="{{ url_for('select_catalog_product') }}">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <input type="hidden" name="product_key" value="{{ prod.get('product_key', '') }}">
+          <button class="btn" type="submit">Use For Generation</button>
+        </form>
+        <form method="post" action="{{ url_for('delete_catalog_product') }}">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <input type="hidden" name="name" value="{{ prod.get('name', '') }}">
+          <input type="hidden" name="image_url" value="{{ prod.get('image_url', '') }}">
+          <button class="btn" type="submit" style="background:#7f1d1d;border-color:#f87171;">Remove</button>
+        </form>
+      </div>
     </div>
   </div>
 </div>

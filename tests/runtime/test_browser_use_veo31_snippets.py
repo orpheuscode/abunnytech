@@ -22,6 +22,10 @@ def test_build_manual_generation_bundle_includes_both_reference_images() -> None
     assert LOCKED_REFERENCE_VEO_SYSTEM_PROMPT.splitlines()[0] in bundle.veo_prompt
     assert bundle.product_description
     assert bundle.creative_brief == "Make a vertical storefront video."
+    assert bundle.prompt_package.user_prompt == "Make a vertical storefront video."
+    assert bundle.prompt_package.full_prompt == bundle.veo_prompt
+    assert bundle.generation_config.aspect_ratio == "9:16"
+    assert bundle.generation_config.duration_seconds == 8
 
 
 def test_guess_mime_type_defaults_for_png() -> None:

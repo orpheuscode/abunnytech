@@ -15,11 +15,13 @@ import csv
 import json
 import os
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 from google import genai
+
+from hackathon_pipelines.contracts import ProductCandidate, VeoPromptPackage, VideoTemplateRecord
 
 ACTION_HOOK_MUSIC_ANALYSIS_PROMPT = (
     "Analyze this video focusing strictly on three things: "
@@ -62,11 +64,37 @@ LOCKED_REFERENCE_VEO_SYSTEM_PROMPT = (
     "in an engaging, professional way. Keep the pacing brisk, the lighting flattering, and make "
     "the product the visual focal point.\n\n"
     "CRITICAL RULES:\n"
-    "- The product shown in the video must be a pixel-perfect exact replica of the provided product image.\n"
-    "- The avatar or talent in the video must be the exact character from the provided avatar image.\n"
-    "- If the user prompt describes a different product or person, ignore that substitution and preserve the uploaded assets.\n"
-    "- Apply the user prompt's style, camera work, mood, music direction, and hook strategy to the actual uploaded assets.\n"
-    "- Avoid macro-only product shots; prefer product-in-context framing with the avatar and environment both visible."
+    "- HARD CAP FOR AN 8-SECOND CLIP: At most two distinct hero products may be picked up, held, or demonstrated. "
+    "If extra items are mentioned, leave them as background props or omit them.\n"
+    "- The product shown in the video must be a pixel-perfect exact replica of the provided product image. "
+    "Do not alter, substitute, relabel, or redesign it.\n"
+    "- The avatar or talent in the video must be the exact character from the provided avatar image. "
+    "Do not swap or restyle the person.\n"
+    "- If the user prompt describes a different product or person, ignore that substitution and preserve "
+    "the uploaded assets.\n"
+    "- Apply the user prompt's style, camera work, mood, music direction, and hook strategy to the "
+    "actual uploaded assets.\n"
+    "- Avoid macro-only product shots. Prefer medium-to-wide product-in-context framing with the avatar "
+    "and environment both visible.\n"
+    "- Object interaction must stay physically believable. No teleporting, magic hands, or jump cuts "
+    "from empty hands to a held object without showing where it came from.\n"
+    "- Cuts are allowed only when motion continuity remains believable and the viewer can understand "
+    "how the product entered the shot."
+)
+
+SINGLE_CONCEPT_VEO_USER_PROMPT_SYSTEM_PROMPT = (
+    "ROLE: Expert Video Marketing Strategist and Creative Director.\n"
+    "GOAL: Turn winning UGC reel research into one stable Veo 3.1 user prompt for a new short-form product video.\n\n"
+    "OUTPUT RULES:\n"
+    "- Return exactly ONE concept.\n"
+    '- Return ONLY valid JSON: {"user_prompt":"...","notes":"..."}.\n'
+    "- Keep `user_prompt` under 75 words.\n"
+    "- Make it visual and concrete: describe actions, lighting, framing, and camera movement.\n"
+    "- Favor the winning hook, motion, lighting, and pacing cues from the research template.\n"
+    "- Avoid marketing jargon, ingredient callouts, label text, or other tiny text details.\n"
+    "- Prefer medium-to-wide shots with the product in context.\n"
+    "- Keep object motion physically believable.\n"
+    "- Default to one hero product interaction unless a second is clearly required."
 )
 
 
@@ -80,6 +108,13 @@ class MarketingVideoAnalysis:
     music: str = ""
     views: int = 0
     likes: int = 0
+
+
+def _limit_words(text: str, *, max_words: int) -> str:
+    words = text.split()
+    if len(words) <= max_words:
+        return text.strip()
+    return " ".join(words[:max_words]).strip()
 
 
 def parse_action_hook_music_sections(analysis_text: str) -> tuple[str, str, str]:
@@ -184,11 +219,96 @@ async def run_gemini_marketing_synthesis(
     return text.strip()
 
 
-def build_locked_reference_veo_prompt(user_prompt: str, *, system_prompt: str = LOCKED_REFERENCE_VEO_SYSTEM_PROMPT) -> str:
+def build_locked_reference_veo_prompt(
+    user_prompt: str,
+    *,
+    system_prompt: str = LOCKED_REFERENCE_VEO_SYSTEM_PROMPT,
+) -> str:
     cleaned_user = user_prompt.strip()
     if not cleaned_user:
         raise ValueError("A non-empty user prompt is required.")
     return f"{system_prompt.strip()}\n\nUSER CREATIVE DIRECTION:\n{cleaned_user}"
+
+
+def build_single_concept_veo_user_prompt_request(
+    template: VideoTemplateRecord,
+    product: ProductCandidate,
+    *,
+    product_description: str,
+    creative_brief: str,
+) -> str:
+    payload = {
+        "template": template.model_dump(mode="json"),
+        "product": product.model_dump(mode="json"),
+        "product_description": product_description,
+        "creative_brief": creative_brief,
+    }
+    return f"{SINGLE_CONCEPT_VEO_USER_PROMPT_SYSTEM_PROMPT}\n\nINPUT:\n{json.dumps(payload, indent=2)}"
+
+
+def build_fallback_veo_user_prompt(
+    template: VideoTemplateRecord,
+    product: ProductCandidate,
+    *,
+    product_description: str,
+    creative_brief: str,
+) -> str:
+    product_name = product.title.strip() or "the product"
+    inspiration = " ".join(
+        part.strip() for part in [template.veo_prompt_draft, creative_brief, product_description] if part
+    )
+    prompt_parts = [
+        f"8-second vertical creator-style reel featuring {product_name}. "
+        "Open with a fast tactile hook and confident direct-to-camera energy. "
+        "Use warm flattering light, a smooth push-in, and a believable pick-up from a table or shelf. "
+        "Keep medium-to-wide framing so the talent, product, and setting stay visible together. "
+    ]
+    inspiration_excerpt = _limit_words(" ".join(inspiration.split()), max_words=22)
+    if inspiration_excerpt:
+        prompt_parts.append(f"Inspiration cues: {inspiration_excerpt}. ")
+    prompt_parts.append("End on a clean product-forward payoff.")
+    return _limit_words("".join(prompt_parts), max_words=75)
+
+
+def build_veo_prompt_package(
+    user_prompt: str,
+    *,
+    system_prompt: str = LOCKED_REFERENCE_VEO_SYSTEM_PROMPT,
+) -> VeoPromptPackage:
+    cleaned_system = system_prompt.strip()
+    cleaned_user = user_prompt.strip()
+    if not cleaned_system:
+        raise ValueError("A non-empty system prompt is required.")
+    if not cleaned_user:
+        raise ValueError("A non-empty user prompt is required.")
+    return VeoPromptPackage(
+        system_prompt=cleaned_system,
+        user_prompt=cleaned_user,
+        full_prompt=build_locked_reference_veo_prompt(cleaned_user, system_prompt=cleaned_system),
+    )
+
+
+def write_veo_prompt_package_files(
+    *,
+    output_dir: str | Path,
+    prompt_package: VeoPromptPackage,
+) -> VeoPromptPackage:
+    target_dir = Path(output_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    system_path = target_dir / "system_prompt.txt"
+    user_path = target_dir / "user_prompt.txt"
+    full_path = target_dir / "full_prompt.txt"
+    system_path.write_text(prompt_package.system_prompt.strip() + "\n", encoding="utf-8")
+    user_path.write_text(prompt_package.user_prompt.strip() + "\n", encoding="utf-8")
+    full_path.write_text(prompt_package.full_prompt.strip() + "\n", encoding="utf-8")
+    return prompt_package.model_copy(
+        update={
+            "artifact_dir": str(target_dir),
+            "system_prompt_path": str(system_path),
+            "user_prompt_path": str(user_path),
+            "full_prompt_path": str(full_path),
+        }
+    )
 
 
 def write_locked_veo_prompt_files(
@@ -197,13 +317,9 @@ def write_locked_veo_prompt_files(
     user_prompt: str,
     system_prompt: str = LOCKED_REFERENCE_VEO_SYSTEM_PROMPT,
 ) -> tuple[Path, Path]:
-    target_dir = Path(output_dir)
-    target_dir.mkdir(parents=True, exist_ok=True)
-    system_path = target_dir / "system_prompt.txt"
-    user_path = target_dir / "user_prompt.txt"
-    system_path.write_text(system_prompt.strip() + "\n", encoding="utf-8")
-    user_path.write_text(user_prompt.strip() + "\n", encoding="utf-8")
-    return system_path, user_path
+    prompt_package = build_veo_prompt_package(user_prompt=user_prompt, system_prompt=system_prompt)
+    written = write_veo_prompt_package_files(output_dir=output_dir, prompt_package=prompt_package)
+    return Path(written.system_prompt_path), Path(written.user_prompt_path)
 
 
 def export_analysis_json(rows: Iterable[MarketingVideoAnalysis]) -> list[dict[str, object]]:

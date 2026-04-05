@@ -1,29 +1,32 @@
 {% extends "owner/base.html" %}
-{% block title %}API keys{% endblock %}
+{% block title %}Runtime setup{% endblock %}
 {% block content %}
 <div class="page-head" style="background: linear-gradient(135deg, #2d3436, #636e72);">
-  <h1 style="margin:0;">API keys</h1>
-  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Stored locally in <code>runtime_dashboard/.owner_secrets.json</code> (gitignored). Applied to API and control-plane processes when you run <code>scripts/demo.py</code>.</p>
+  <h1 style="margin:0;">Runtime Setup</h1>
+  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Stored locally in <code>runtime_dashboard/.owner_secrets.json</code> (gitignored). The demo launcher uses exported env vars first, then saved settings, then auto-detected local Chrome defaults when possible.</p>
 </div>
 
 <div class="card">
-  <p class="muted">Browser Use (OpenAI) — used when the agent runs with OpenAI models or <code>BROWSER_USE_LLM=openai</code>. Gemini-backed Browser Use uses the Gemini key below.</p>
+  <p class="muted">Browser Use — sets <code>BROWSER_USE_API_KEY</code> for the default <code>ChatBrowserUse</code> browser automation model.</p>
   <p class="muted">Gemini / Google — sets <code>GOOGLE_API_KEY</code> and <code>GEMINI_API_KEY</code>.</p>
   <p class="muted">Twelve Labs — sets <code>TWELVE_LABS_API_KEY</code> and <code>TWELVELABS_API_KEY</code>.</p>
+  <p class="muted">Browser runtime — supports <code>BROWSER_USE_CDP_URL</code> or local Chrome via <code>CHROME_EXECUTABLE_PATH</code>, <code>CHROME_USER_DATA_DIR</code>, and <code>CHROME_PROFILE_DIRECTORY</code>.</p>
 </div>
 
 <div class="card" style="max-width: 520px;">
   <p class="muted" style="margin-top:0;">Leave a field empty to keep the current saved value.</p>
   <ul class="muted" style="margin:0 0 1rem;padding-left:1.2rem;">
-    <li>{% if saved_openai %}<strong>Saved</strong>{% else %}Not set{% endif %} — OpenAI (<code>OPENAI_API_KEY</code>)</li>
+    <li>{% if saved_browser_use %}<strong>Saved</strong>{% else %}Not set{% endif %} — Browser Use (<code>BROWSER_USE_API_KEY</code>)</li>
     <li>{% if saved_gemini %}<strong>Saved</strong>{% else %}Not set{% endif %} — Gemini / Google (<code>GOOGLE_API_KEY</code>, <code>GEMINI_API_KEY</code>)</li>
     <li>{% if saved_twelve %}<strong>Saved</strong>{% else %}Not set{% endif %} — Twelve Labs (<code>TWELVE_LABS_API_KEY</code>)</li>
+    <li>{% if saved_browser_runtime %}<strong>Saved</strong>{% else %}Inherited / auto{% endif %} — Browser runtime</li>
   </ul>
+  <p class="muted" style="margin:0;">Effective browser runtime: <strong>{{ browser_runtime_source }}</strong> · {{ browser_runtime_mode_label }}</p>
 </div>
 
 <form method="post" action="{{ url_for('settings') }}" class="card" style="max-width: 520px;">
-  <label class="muted">Browser Use (OpenAI API key)</label>
-  <input type="password" name="browser_use_openai" value="" autocomplete="new-password" placeholder="New key…"
+  <label class="muted">Browser Use API key</label>
+  <input type="password" name="browser_use_api_key" value="" autocomplete="new-password" placeholder="New key…"
     style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
 
   <label class="muted">Gemini / Google API key</label>
@@ -34,6 +37,36 @@
   <input type="password" name="twelvelabs" value="" autocomplete="new-password" placeholder="New key…"
     style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
 
-  <button type="submit" class="btn">Save keys</button>
+  <hr class="sep">
+
+  <label class="muted">Browser Use CDP URL</label>
+  <input type="text" name="browser_use_cdp_url" value="{{ browser_use_cdp_url }}" placeholder="http://127.0.0.1:9222"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+
+  <label class="muted">Chrome executable path</label>
+  <input type="text" name="chrome_executable_path" value="{{ chrome_executable_path }}" placeholder="/usr/bin/google-chrome"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+
+  <label class="muted">Chrome user data dir</label>
+  <input type="text" name="chrome_user_data_dir" value="{{ chrome_user_data_dir }}" placeholder="~/.config/google-chrome"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+
+  <label class="muted">Chrome profile directory</label>
+  <input type="text" name="chrome_profile_directory" value="{{ chrome_profile_directory }}" placeholder="Profile 9"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+  <p class="muted" style="margin:-0.5rem 0 1rem;">You can type just the local Chrome profile name, for example <code>Profile 9</code> or <code>Default</code>. The dashboard will resolve it against the detected Chrome user-data directory.</p>
+
+  <label class="muted">Browser window mode</label>
+  <select name="browser_use_headless"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+    <option value="false" {{ 'selected' if browser_use_headless == 'false' else '' }}>Visible browser window</option>
+    <option value="true" {{ 'selected' if browser_use_headless == 'true' else '' }}>Headless</option>
+  </select>
+
+  <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+    <button type="submit" class="btn">Save runtime setup</button>
+    <button type="submit" class="btn" formaction="{{ url_for('launch_local_browser') }}" formmethod="post">Launch Local Chrome + Save CDP</button>
+  </div>
+  <p class="muted" style="margin:0.75rem 0 0;">The launch action uses the values currently in this form. If Chrome starts successfully, the dashboard saves the resulting <code>BROWSER_USE_CDP_URL</code> automatically.</p>
 </form>
 {% endblock %}

@@ -204,7 +204,7 @@
     </nav>
     <div class="nav-section">Configuration</div>
     <nav class="nav">
-      <a href="{{ url_for('settings') }}" class="{{ 'active' if active_slug == 'settings' else '' }}">API keys</a>
+      <a href="{{ url_for('settings') }}" class="{{ 'active' if active_slug == 'settings' else '' }}">Runtime Setup</a>
     </nav>
     <form class="prefs" method="post" action="{{ url_for('set_prefs') }}">
       <input type="hidden" name="next" value="{{ request.path }}">
@@ -216,7 +216,7 @@
       </label>
       <button type="submit">Apply</button>
     </form>
-    <p class="footer-note">Keys saved on the API keys page are merged into <code>demo.py</code> child processes.</p>
+    <p class="footer-note">Saved runtime settings are merged into <code>demo.py</code> child processes.</p>
   </aside>
   <main>
     {% with messages = get_flashed_messages() %}

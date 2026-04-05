@@ -8,6 +8,12 @@ dependencies = [
     "browser-runtime",
     "google-genai>=1.0.0",
     "twelvelabs>=1.0.0",
+    "browser-cookie3>=0.20.1",
+    "httpx>=0.28.0",
+    "instaloader>=4.15.1",
+    "imageio>=2.37.0",
+    "imageio-ffmpeg>=0.6.0",
+    "numpy>=2.0.0",
 ]
 
 [build-system]

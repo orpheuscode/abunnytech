@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -75,6 +76,34 @@ class HackathonOrchestrator:
             if not path.exists():
                 path.write_bytes(b"")
         return str(path)
+
+    async def _wait_for_media_ready(
+        self,
+        media_path: str,
+        *,
+        dry_run: bool,
+        timeout_seconds: float = 180.0,
+        poll_interval_seconds: float = 0.5,
+    ) -> str:
+        path = Path(media_path)
+        if dry_run:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not path.exists():
+                path.write_bytes(b"")
+            return str(path)
+
+        deadline = asyncio.get_running_loop().time() + timeout_seconds
+        while asyncio.get_running_loop().time() < deadline:
+            if path.exists() and path.is_file():
+                try:
+                    if path.stat().st_size > 0:
+                        return str(path)
+                except FileNotFoundError:
+                    pass
+            await asyncio.sleep(poll_interval_seconds)
+
+        msg = f"Timed out waiting for generated video to be ready for posting: {path}"
+        raise RuntimeError(msg)
 
     async def _generate_top_product_video(
         self,
@@ -179,15 +208,41 @@ class HackathonOrchestrator:
         from hackathon_pipelines.stores import new_id
 
         run_id = f"orch_{uuid.uuid4().hex[:12]}"
-        job = PostJob(job_id=new_id("post"), media_path=media_path, caption=caption, dry_run=dry_run)
+        ready_media_path = await self._wait_for_media_ready(media_path, dry_run=dry_run)
+        job = PostJob(job_id=new_id("post"), media_path=ready_media_path, caption=caption, dry_run=dry_run)
         pub = await self._social.publish_reel(job)
         notes = [f"publish_success={pub.success}"]
+        post_url = str(pub.output.get("post_url") or "")
         post_id = str(pub.output.get("post_id") or pub.output.get("post_url") or "unknown_post")
         tpl = self._templates.get_template(template_id)
+        follow_up_labels: list[str] = []
+        follow_up_coroutines: list[object] = []
+        if post_url and not dry_run:
+            follow_up_labels.append("engagement")
+            follow_up_coroutines.append(
+                self._social.engage_post_comments(
+                    post_url,
+                    persona=None,
+                    dry_run=False,
+                    run_id=run_id,
+                )
+            )
         if tpl:
-            snap = await self._social.fetch_post_analytics(post_id, dry_run=dry_run)
-            updated = self._social.apply_performance_to_template(tpl, snap)
-            notes.append(f"performance={updated.performance_label}")
+            follow_up_labels.append("analytics")
+            follow_up_coroutines.append(self._social.fetch_post_analytics(post_id, dry_run=dry_run))
+
+        if follow_up_coroutines:
+            follow_up_results = await asyncio.gather(*follow_up_coroutines, return_exceptions=True)
+            for label, result in zip(follow_up_labels, follow_up_results, strict=False):
+                if isinstance(result, Exception):
+                    notes.append(f"{label}_error={type(result).__name__}: {result}")
+                    continue
+                if label == "engagement":
+                    notes.append(f"engagement_status={result.status.value}")
+                    notes.append(f"engagement_replies={result.total_replies_logged}")
+                elif label == "analytics" and tpl is not None:
+                    updated = self._social.apply_performance_to_template(tpl, result)
+                    notes.append(f"performance={updated.performance_label}")
         return OrchestratorRunSummary(run_id=run_id, posts=1, analytics_snapshots=1, notes=notes)
 
     async def run_closed_loop_cycle(

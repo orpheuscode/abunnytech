@@ -1,0 +1,236 @@
+{% extends "owner/base.html" %}
+{% block extra_css %}
+<style>
+  .preview-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(320px, 0.95fr);
+    gap: 1rem;
+    align-items: start;
+  }
+  .preview-hero {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at top right, rgba(249, 115, 22, 0.22), transparent 34%),
+      linear-gradient(145deg, #101826, #1f2937 58%, #2b1d13);
+  }
+  .preview-player {
+    width: 100%;
+    max-height: 72vh;
+    border-radius: 14px;
+    border: 1px solid #4b5563;
+    background: #020617;
+  }
+  .preview-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .metric {
+    padding: 0.8rem 0.9rem;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid #334155;
+  }
+  .metric strong {
+    display: block;
+    font-size: 1.1rem;
+    margin-top: 0.2rem;
+  }
+  .preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .preview-item {
+    display: block;
+    padding: 0.9rem;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    background: #111827;
+    color: inherit;
+  }
+  .preview-item:hover {
+    border-color: #fb923c;
+    background: #172033;
+  }
+  .preview-item.active {
+    border-color: #fdba74;
+    box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.35);
+    background: linear-gradient(135deg, rgba(154, 52, 18, 0.24), rgba(23, 32, 51, 0.98));
+  }
+  .preview-item-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(249, 115, 22, 0.15);
+    color: #fdba74;
+    border: 1px solid rgba(249, 115, 22, 0.35);
+  }
+  .mode-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    border: 1px solid #334155;
+    background: rgba(15, 23, 42, 0.72);
+    color: #cbd5e1;
+  }
+  .mode-pill.live {
+    color: #86efac;
+    border-color: rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.14);
+  }
+  .mode-pill.dry {
+    color: #fcd34d;
+    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.14);
+  }
+  .asset-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .asset-card {
+    display: grid;
+    gap: 0.6rem;
+    align-content: start;
+  }
+  .asset-card img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    background: #020617;
+  }
+  @media (max-width: 1100px) {
+    .preview-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head preview-hero">
+  <h1 style="margin:0;">Generated Video Preview</h1>
+  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">
+    Review recently generated reels, inspect prompt inputs, and play the underlying MP4 artifacts from one place.
+    {% if not control_plane_available %}Control plane history is offline, so this page is showing local video files only.{% endif %}
+  </p>
+</div>
+
+{% if selected_preview %}
+<div class="preview-layout">
+  <section class="card">
+    <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
+      <div>
+        <p class="muted" style="margin:0;">Selected run</p>
+        <h2 style="margin:0.15rem 0 0;">{{ selected_preview.get('product_title') or selected_preview.get('run_id') or 'Generated video' }}</h2>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end;">
+        <span class="mode-pill {{ 'dry' if selected_preview.get('dry_run') else 'live' if selected_preview.get('run_id') else '' }}">{{ selected_preview.get('mode_label') }}</span>
+        <span class="status-pill">{{ selected_preview.get('status') or 'unknown' }}</span>
+      </div>
+    </div>
+    <video class="preview-player" controls preload="metadata" style="margin-top:1rem;">
+      <source src="{{ selected_preview.get('video_url') }}" type="video/mp4">
+    </video>
+    <div class="preview-meta">
+      <div class="metric">
+        <span class="muted">Run ID</span>
+        <strong style="font-size:0.95rem;word-break:break-word;">{{ selected_preview.get('run_id') or 'local artifact' }}</strong>
+      </div>
+      <div class="metric">
+        <span class="muted">Template</span>
+        <strong style="font-size:0.95rem;word-break:break-word;">{{ selected_preview.get('selected_template_id') or 'n/a' }}</strong>
+      </div>
+      <div class="metric">
+        <span class="muted">Updated</span>
+        <strong style="font-size:0.95rem;word-break:break-word;">{{ selected_preview.get('updated_at') or selected_preview.get('finished_at') or 'n/a' }}</strong>
+      </div>
+      <div class="metric">
+        <span class="muted">Post Status</span>
+        <strong style="font-size:0.95rem;word-break:break-word;">{{ 'Ready' if selected_preview.get('is_post_ready') else 'Unposted' if selected_preview.get('run_id') else 'Artifact only' }}</strong>
+      </div>
+    </div>
+    <div class="asset-strip">
+      <div class="asset-card">
+        <strong>Product reference</strong>
+        {% if selected_preview.get('poster_url') %}
+        <img src="{{ selected_preview.get('poster_url') }}" alt="Product reference">
+        {% else %}
+        <div class="thumb-placeholder">No product asset</div>
+        {% endif %}
+      </div>
+      <div class="asset-card">
+        <strong>Avatar reference</strong>
+        {% if selected_preview.get('avatar_url') %}
+        <img src="{{ selected_preview.get('avatar_url') }}" alt="Avatar reference">
+        {% else %}
+        <div class="thumb-placeholder">No avatar asset</div>
+        {% endif %}
+      </div>
+    </div>
+    <hr class="sep">
+    <p style="margin:0;"><strong>Description</strong></p>
+    <p class="muted" style="margin:0.45rem 0 0;">{{ selected_preview.get('product_description') or 'No product description stored for this run.' }}</p>
+    <p style="margin:1rem 0 0;"><strong>Caption draft</strong></p>
+    <pre class="json" style="margin-top:0.5rem;white-space:pre-wrap;">{{ selected_preview.get('caption') or 'No caption draft stored.' }}</pre>
+    {% if selected_preview.get('post_url') %}
+    <p style="margin-top:0.75rem;"><strong>Post URL:</strong> <a href="{{ selected_preview.get('post_url') }}" target="_blank" rel="noreferrer">{{ selected_preview.get('post_url') }}</a></p>
+    {% endif %}
+    <p class="muted" style="margin-top:0.75rem;">Video path: <code>{{ selected_preview.get('video_path') }}</code></p>
+  </section>
+
+  <aside class="card">
+    <div style="display:flex;justify-content:space-between;gap:0.75rem;align-items:baseline;">
+      <h3 style="margin:0;">Recent Videos</h3>
+      <span class="muted">{{ preview_records|length }} shown</span>
+    </div>
+    <div class="preview-list" style="margin-top:0.9rem;">
+      {% for item in preview_records %}
+      <a
+        class="preview-item {{ 'active' if item.get('preview_id') == selected_preview.get('preview_id') else '' }}"
+        href="{{ url_for('page', slug='preview', preview_id=item.get('preview_id')) }}"
+      >
+        <div class="preview-item-top">
+          <strong style="word-break:break-word;">{{ item.get('product_title') or item.get('run_id') or item.get('video_path') }}</strong>
+          <div style="display:flex;gap:0.45rem;flex-wrap:wrap;justify-content:flex-end;">
+            <span class="mode-pill {{ 'dry' if item.get('dry_run') else 'live' if item.get('run_id') else '' }}">{{ item.get('mode_label') }}</span>
+            <span class="status-pill">{{ item.get('status') or item.get('source') }}</span>
+          </div>
+        </div>
+        <p class="muted" style="margin:0.45rem 0 0;">{{ item.get('product_description') or item.get('caption') or 'Generated video artifact' }}</p>
+        <p class="muted" style="margin:0.55rem 0 0;">{{ item.get('updated_at') or item.get('finished_at') or item.get('video_path') }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </aside>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+  <h3 style="margin-top:0;">Selected Record JSON</h3>
+  <pre class="json">{{ selected_json }}</pre>
+</div>
+{% else %}
+<div class="card">
+  <h3 style="margin-top:0;">No Generated Videos Yet</h3>
+  <p class="muted">Run the pipeline or DB-backed generation flow first. Generated MP4 artifacts will appear here automatically.</p>
+</div>
+{% endif %}
+{% endblock %}

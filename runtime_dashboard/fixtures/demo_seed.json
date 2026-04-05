@@ -131,7 +131,36 @@
       "posted_at": "2026-04-03T14:30:00Z",
       "post_url": "https://tiktok.com/@techtok_sarah/video/demo_001",
       "status": "posted",
-      "error_message": ""
+      "error_message": "",
+      "engagement_summary": {
+        "status": "replied",
+        "total_replies_logged": 2,
+        "replies_posted_this_run": 1,
+        "last_run_at": "2026-04-04T16:00:00Z",
+        "last_reply_at": "2026-04-04T16:00:00Z",
+        "last_reason": "replies_posted",
+        "last_error": null,
+        "recent_replies": [
+          {
+            "commenter_handle": "creatorfan",
+            "response_text": "thank you so much 🫶"
+          },
+          {
+            "commenter_handle": "shopper01",
+            "response_text": "check the link in bio and lmk if you have questions ✨"
+          }
+        ]
+      },
+      "recent_replies": [
+        {
+          "commenter_handle": "creatorfan",
+          "response_text": "thank you so much 🫶"
+        },
+        {
+          "commenter_handle": "shopper01",
+          "response_text": "check the link in bio and lmk if you have questions ✨"
+        }
+      ]
     }
   ],
   "optimization_directives": [

@@ -9,6 +9,7 @@ import sys
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import websockets
 
@@ -28,13 +29,22 @@ from hackathon_pipelines.stores.sqlite_store import (
     SQLiteTemplateStore,
 )
 from integration.local_instagram_browser import (
+    DEFAULT_CHROME_PATH,
     ensure_profile_clone,
     launch_local_debug_chrome,
     wait_for_cdp,
 )
 
-SOURCE_USER_DATA_DIR = Path(os.environ["LOCALAPPDATA"]) / "Google" / "Chrome" / "User Data"
-PROFILE_DIRECTORY = "Profile 4"
+def _default_chrome_user_data_dir() -> Path:
+    localappdata = os.environ.get("LOCALAPPDATA")
+    if localappdata:
+        return Path(localappdata) / "Google" / "Chrome" / "User Data"
+    return Path.home() / ".config" / "google-chrome"
+
+
+SOURCE_USER_DATA_DIR = Path(os.environ.get("CHROME_USER_DATA_DIR", _default_chrome_user_data_dir()))
+PROFILE_DIRECTORY = os.environ.get("CHROME_PROFILE_DIRECTORY", "Profile 4")
+CHROME_EXECUTABLE_PATH = Path(os.environ.get("CHROME_EXECUTABLE_PATH", str(DEFAULT_CHROME_PATH)))
 RUNTIME_USER_DATA_DIR = ROOT / "data" / "chrome_test_instagram_runtime"
 EXISTING_CDP_URLS = ("http://127.0.0.1:9553", "http://127.0.0.1:9666")
 TARGET_REELS_TO_SCRAPE = 5
@@ -55,6 +65,26 @@ def load_env(path: Path) -> None:
 def _fetch_json(url: str) -> Any:
     with urllib.request.urlopen(url, timeout=15) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _is_probable_video_download_url(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    url = value.strip()
+    if not url.startswith(("http://", "https://")):
+        return False
+    lowered = url.lower()
+    path = urlparse(url).path.lower()
+    if path.endswith((".css", ".js", ".woff", ".woff2", ".ttf", ".otf", ".svg", ".png", ".jpg", ".jpeg", ".webp")):
+        return False
+    if "mime=audio" in lowered or "mime_type=audio" in lowered or "/audio/" in path:
+        return False
+    if path.endswith(".mp4"):
+        return True
+    return any(
+        hint in lowered
+        for hint in ("mime=video", "mime_type=video", "video_versions", "/video/", "/reel_media/", "/clips/", "/v/t")
+    )
 
 
 class BrowserTargetSession:
@@ -178,29 +208,51 @@ CURRENT_REEL_JS = r"""
     }
   };
 
+  const isLikelyVideoUrl = (value) => {
+    if (!value || !/^https?:/i.test(value)) return false;
+    try {
+      const url = new URL(value);
+      const path = url.pathname.toLowerCase();
+      const raw = `${path}${url.search}`.toLowerCase();
+      if (/\.(css|js|woff2?|ttf|otf|svg|png|jpe?g|webp|gif|ico)(?:$|[?#])/.test(path)) return false;
+      if (/mime(_type)?=audio/.test(raw) || /\/audio\//.test(path)) return false;
+      if (/\.mp4(?:$|[?#])/.test(path)) return true;
+      return /(mime(_type)?=video|video_versions|\/video\/|\/reel_media\/|\/clips\/|\/v\/t)/.test(raw);
+    } catch {
+      return false;
+    }
+  };
+
   const resourceScore = (value) => {
     let score = 0;
     const raw = String(value || '').toLowerCase();
+    if (raw.includes('.mp4')) score += 8;
+    if (raw.includes('mime=video') || raw.includes('mime_type=video')) score += 6;
     if (raw.includes('dash_vp9') || raw.includes('1080p') || raw.includes('720p')) score += 5;
     if (raw.includes('clips')) score += 3;
     if (raw.includes('audio')) score -= 10;
+    if (raw.includes('.css') || raw.includes('.js')) score -= 20;
     return score;
   };
 
   const bestVideoUrl = () => {
     const direct = Array.from(document.querySelectorAll('video'))
       .map((video) => video.currentSrc || video.src || '')
-      .filter((value) => /^https?:/i.test(value))
       .map((value) => sanitizeMediaUrl(value));
-    if (direct.length) return direct[0];
+    const directMatch = direct.find((value) => isLikelyVideoUrl(value));
+    if (directMatch) return directMatch;
+
+    const meta = Array.from(document.querySelectorAll('meta[property="og:video"], meta[property="og:video:secure_url"], meta[name="twitter:player:stream"]'))
+      .map((node) => sanitizeMediaUrl(node.content || ''))
+      .find((value) => isLikelyVideoUrl(value));
+    if (meta) return meta;
+
     const perf = performance
       .getEntriesByType('resource')
-      .map((entry) => entry.name)
-      .filter((name) => /\.mp4|cdninstagram/i.test(name))
-      .filter((name) => !/audio/i.test(name))
-      .map((value) => sanitizeMediaUrl(value))
-      .filter(Boolean)
-      .sort((a, b) => resourceScore(b) - resourceScore(a));
+      .map((entry) => ({ name: sanitizeMediaUrl(entry.name), initiatorType: entry.initiatorType || '' }))
+      .filter((entry) => isLikelyVideoUrl(entry.name))
+      .sort((a, b) => (resourceScore(b.name) + (b.initiatorType === 'video' ? 4 : 0)) - (resourceScore(a.name) + (a.initiatorType === 'video' ? 4 : 0)))
+      .map((entry) => entry.name);
     return perf[0] || null;
   };
 
@@ -292,6 +344,7 @@ async def _resolve_cdp_url() -> tuple[str, Any | None]:
         user_data_dir=RUNTIME_USER_DATA_DIR,
         profile_directory=PROFILE_DIRECTORY,
         start_url="https://www.instagram.com/",
+        chrome_path=CHROME_EXECUTABLE_PATH,
     )
     return cdp_url, chrome_process
 
@@ -392,12 +445,15 @@ async def scrape_instagram_reels_via_cdp(
         if not reel_id or not source_url:
             continue
         try:
+            video_download_url = item.get("video_download_url")
             metrics.append(
                 ReelSurfaceMetrics.model_validate(
                     {
                         "reel_id": reel_id,
                         "source_url": source_url,
-                        "video_download_url": item.get("video_download_url"),
+                        "video_download_url": (
+                            video_download_url if _is_probable_video_download_url(video_download_url) else None
+                        ),
                         "views": int(item.get("views") or 0),
                         "likes": int(item.get("likes") or 0),
                         "comments": int(item.get("comments") or 0),
@@ -453,6 +509,9 @@ async def main() -> None:
 
     report = {
         "cdp_url": cdp_url,
+        "chrome_executable_path": str(CHROME_EXECUTABLE_PATH),
+        "source_user_data_dir": str(SOURCE_USER_DATA_DIR),
+        "profile_directory": PROFILE_DIRECTORY,
         "runtime_user_data_dir": str(RUNTIME_USER_DATA_DIR),
         "db_path": str(db_path),
         "discovery_success": bool(metrics),

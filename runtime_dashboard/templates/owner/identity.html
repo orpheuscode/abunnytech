@@ -28,8 +28,25 @@
   {% for asset in avatar_library %}
   <div class="card" style="margin-bottom:0;">
     <img class="thumb" src="{{ asset.get('url') }}" alt="{{ asset.get('filename', 'Avatar') }}">
-    <p style="margin:0.75rem 0 0;"><strong>{{ asset.get('filename', '') }}</strong></p>
+    <p style="margin:0.75rem 0 0;">
+      <strong>{{ asset.get('filename', '') }}</strong>
+      {% if asset.get('selected') %}
+      <span style="float:right;color:#86efac;">Selected</span>
+      {% endif %}
+    </p>
     <p class="muted" style="margin:0.25rem 0 0;"><code>{{ asset.get('path', '') }}</code></p>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;">
+      <form method="post" action="{{ url_for('select_avatar_library_asset') }}">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <input type="hidden" name="asset_path" value="{{ asset.get('path', '') }}">
+        <button class="btn" type="submit">Use For Generation</button>
+      </form>
+      <form method="post" action="{{ url_for('delete_avatar_library_asset') }}">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <input type="hidden" name="asset_path" value="{{ asset.get('path', '') }}">
+        <button class="btn" type="submit" style="background:#7f1d1d;border-color:#f87171;">Remove</button>
+      </form>
+    </div>
   </div>
   {% endfor %}
 </div>

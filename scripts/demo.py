@@ -12,6 +12,7 @@ Usage:
 
 Ctrl+C stops all services.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +39,7 @@ def _env() -> dict[str, str]:
     env.setdefault("FEATURE_STAGE5_MONETIZE", "false")
     for k, v in read_for_subprocess().items():
         if v:
-            env[k] = v
+            env.setdefault(k, v)
     return env
 
 
@@ -75,10 +76,14 @@ def main() -> None:
     print(f"\n  Starting State CRUD API on port {args.api_port}...")
     api_proc = subprocess.Popen(
         [
-            sys.executable, "-m", "uvicorn",
+            sys.executable,
+            "-m",
+            "uvicorn",
             "state_api.main:app",
-            "--host", "0.0.0.0",
-            "--port", str(args.api_port),
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(args.api_port),
         ],
         cwd=str(REPO),
         env=env,
@@ -96,10 +101,14 @@ def main() -> None:
     print(f"  Starting Control Plane on port {args.cp_port}...")
     cp_proc = subprocess.Popen(
         [
-            sys.executable, "-m", "uvicorn",
+            sys.executable,
+            "-m",
+            "uvicorn",
             "services.control_plane.app:app",
-            "--host", "0.0.0.0",
-            "--port", str(args.cp_port),
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(args.cp_port),
         ],
         cwd=str(REPO),
         env=env,
@@ -131,6 +140,15 @@ def main() -> None:
         print(f"    Dashboard:   http://localhost:{args.dash_port}")
     print(f"\n  Dry-run: {env.get('DRY_RUN', 'true')}")
     print(f"  Stage 5: {env.get('FEATURE_STAGE5_MONETIZE', 'false')}")
+    if env.get("BROWSER_USE_CDP_URL"):
+        print(f"  Browser:     CDP -> {env['BROWSER_USE_CDP_URL']}")
+    elif env.get("CHROME_EXECUTABLE_PATH"):
+        print(
+            "  Browser:     local Chrome -> "
+            f"{env.get('CHROME_EXECUTABLE_PATH')} "
+            f"[{env.get('CHROME_PROFILE_DIRECTORY', 'Default')}]"
+        )
+    print(f"  Headless:    {env.get('BROWSER_USE_HEADLESS', 'false')}")
     print("=" * 60)
     print("\n  Press Ctrl+C to stop all services.\n")
 

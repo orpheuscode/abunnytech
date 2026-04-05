@@ -1,13 +1,14 @@
 """SQLite database layer with async SQLAlchemy. Adapter-friendly for Supabase/Postgres later."""
 
+from __future__ import annotations
+
 import json
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Column, DateTime, String, Text, create_engine, select
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from packages.shared.config import get_settings
 
@@ -49,26 +50,49 @@ _async_engine = None
 _async_session_factory = None
 
 
+class AsyncSessionAdapter:
+    """Minimal async-shaped wrapper over a synchronous SQLAlchemy session."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    async def __aenter__(self) -> AsyncSessionAdapter:
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        self._session.close()
+
+    def add(self, instance: Any) -> None:
+        self._session.add(instance)
+
+    async def commit(self) -> None:
+        self._session.commit()
+
+    async def execute(self, statement: Any) -> Any:
+        return self._session.execute(statement)
+
+    async def get(self, entity: Any, ident: Any) -> Any:
+        return self._session.get(entity, ident)
+
+
 async def get_async_engine():
     global _async_engine
     if _async_engine is None:
-        settings = get_settings()
-        _async_engine = create_async_engine(settings.database_url, echo=False)
+        _async_engine = get_sync_engine()
     return _async_engine
 
 
-async def get_async_session() -> AsyncSession:
+async def get_async_session() -> AsyncSessionAdapter:
     global _async_session_factory
     if _async_session_factory is None:
         engine = await get_async_engine()
-        _async_session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    return _async_session_factory()
+        _async_session_factory = sessionmaker(engine, class_=Session, expire_on_commit=False)
+    return AsyncSessionAdapter(_async_session_factory())
 
 
 async def init_db():
     engine = await get_async_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    Base.metadata.create_all(engine)
 
 
 def get_sync_engine():

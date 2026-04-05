@@ -7,9 +7,13 @@ from typing import Protocol, runtime_checkable
 from browser_runtime.types import AgentResult, AgentTask
 
 from hackathon_pipelines.contracts import (
+    CommentEngagementSummary,
+    CommentReplyRecord,
     GeneratedVideoArtifact,
     GenerationBundle,
+    InstagramPostDraft,
     PostAnalyticsSnapshot,
+    PostedContentRecord,
     ProductCandidate,
     ReelSurfaceMetrics,
     TemplateDisposition,
@@ -60,6 +64,17 @@ class GeminiVideoAgentPort(Protocol):
         avatar_image_path: str,
     ) -> GenerationBundle: ...
 
+    async def build_instagram_post_draft(
+        self,
+        template: VideoTemplateRecord,
+        product: ProductCandidate,
+        *,
+        bundle: GenerationBundle,
+        artifact: GeneratedVideoArtifact,
+        structure: VideoStructureRecord | None = None,
+        metrics: ReelSurfaceMetrics | None = None,
+    ) -> InstagramPostDraft: ...
+
 
 @runtime_checkable
 class VeoGeneratorPort(Protocol):
@@ -76,6 +91,25 @@ class ProductCatalogPort(Protocol):
 @runtime_checkable
 class AnalyticsSinkPort(Protocol):
     def persist_post_analytics(self, snapshot: PostAnalyticsSnapshot) -> None: ...
+
+
+@runtime_checkable
+class PostedContentSinkPort(Protocol):
+    def persist_posted_content(self, record: PostedContentRecord) -> None: ...
+
+    def list_posted_content(self) -> list[PostedContentRecord]: ...
+
+    def get_posted_content(self, post_url: str) -> PostedContentRecord | None: ...
+
+    def update_posted_content_engagement(
+        self,
+        post_url: str,
+        summary: CommentEngagementSummary,
+    ) -> PostedContentRecord | None: ...
+
+    def persist_comment_reply(self, record: CommentReplyRecord) -> None: ...
+
+    def list_comment_replies(self, post_url: str | None = None) -> list[CommentReplyRecord]: ...
 
 
 @runtime_checkable

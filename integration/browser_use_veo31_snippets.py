@@ -24,9 +24,13 @@ from uuid import uuid4
 
 from browser_runtime.providers.browser_use import BrowserUseBrowserConfig, BrowserUseProvider
 from hackathon_pipelines.adapters.live_api import GeminiTemplateAgent, TwelveLabsUnderstanding
-from hackathon_pipelines.contracts import GeneratedVideoArtifact, GenerationBundle
+from hackathon_pipelines.contracts import (
+    GeneratedVideoArtifact,
+    GenerationBundle,
+    VeoGenerationConfig,
+)
 from hackathon_pipelines.ports import VeoGeneratorPort
-from hackathon_pipelines.prototype_bridge import build_locked_reference_veo_prompt
+from hackathon_pipelines.prototype_bridge import build_veo_prompt_package
 from hackathon_pipelines.video_io import (
     build_output_video_path,
     download_video_to_path,
@@ -180,14 +184,17 @@ def build_manual_generation_bundle(
     prompt: str,
 ) -> GenerationBundle:
     """Build a minimal bundle for direct Veo generation without discovery/template steps."""
+    prompt_package = build_veo_prompt_package(prompt)
     return GenerationBundle(
         bundle_id=f"manual_{uuid4().hex[:12]}",
         template_id="manual_template",
         product_id="manual_product",
-        veo_prompt=build_locked_reference_veo_prompt(prompt),
+        veo_prompt=prompt_package.full_prompt,
         product_title="manual_product",
         product_description="Use the uploaded product image and any provided description as the source of truth.",
         creative_brief=prompt,
+        prompt_package=prompt_package,
+        generation_config=VeoGenerationConfig(),
         avatar_image_path=avatar_image_path,
         product_image_path=product_image_path,
         reference_image_paths=[avatar_image_path, product_image_path],

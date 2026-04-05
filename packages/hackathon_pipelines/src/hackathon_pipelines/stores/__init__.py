@@ -1,5 +1,6 @@
 from hackathon_pipelines.stores.memory import (
     MemoryAnalyticsSink,
+    MemoryPostedContentSink,
     MemoryProductCatalog,
     MemoryReelSink,
     MemoryTemplateStore,
@@ -8,6 +9,7 @@ from hackathon_pipelines.stores.memory import (
 from hackathon_pipelines.stores.sqlite_store import (
     SQLiteAnalyticsSink,
     SQLiteHackathonStore,
+    SQLitePostedContentSink,
     SQLiteProductCatalog,
     SQLiteReelSink,
     SQLiteTemplateStore,
@@ -15,11 +17,13 @@ from hackathon_pipelines.stores.sqlite_store import (
 
 __all__ = [
     "MemoryAnalyticsSink",
+    "MemoryPostedContentSink",
     "MemoryProductCatalog",
     "MemoryReelSink",
     "MemoryTemplateStore",
     "SQLiteAnalyticsSink",
     "SQLiteHackathonStore",
+    "SQLitePostedContentSink",
     "SQLiteProductCatalog",
     "SQLiteReelSink",
     "SQLiteTemplateStore",

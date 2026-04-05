@@ -57,59 +57,111 @@ Default ports match `scripts/demo.py` and can be overridden with `--api-port`, `
 
 ## Quickstart
 
+### Full stack in one command
+
 ```bash
 # 1. Install dependencies
 uv sync
 
-# 2. Environment (optional for dry-run)
+# 2. Optional env file for non-dry-run keys/settings
 cp .env.example .env
 
-# 3. Start API + control plane + owner dashboard
+# 3. Start state API + control plane + owner dashboard
 uv run python -m scripts.demo
-
-# 4. Open the dashboard
-#    http://localhost:8501
 ```
 
-Note: use `uv run python -m scripts.demo` instead of `uv run python scripts/demo.py`. The module form is the working launcher in this repo because it preserves imports for `runtime_dashboard`.
+Open:
 
-## Owner Dashboard Only
+- Dashboard: `http://localhost:8501`
+- State API docs: `http://localhost:8000/docs`
+- Control plane: `http://localhost:8001`
+
+Use `uv run python -m scripts.demo` rather than `uv run python scripts/demo.py`; the module form preserves imports for `runtime_dashboard`.
+
+### Run services separately
+
+If you want the API, control plane, and dashboard in separate terminals:
+
+```bash
+# Terminal 1: State CRUD API
+uv run python -m uvicorn state_api.main:app --host 0.0.0.0 --port 8000
+```
+
+```bash
+# Terminal 2: Control plane
+uv run python -m uvicorn services.control_plane.app:app --host 0.0.0.0 --port 8001
+```
+
+```bash
+# Terminal 3: Owner dashboard
+DASHBOARD_PORT=8501 uv run python -m runtime_dashboard.flask_owner_app
+```
+
+The dashboard can then use:
+
+- Fixture mode for static demo data
+- Local API mode with `http://localhost:8000`
+- Control-plane actions against `http://localhost:8001`
+
+### Dashboard only
 
 If the backends are already running:
 
 ```bash
-uv run python -m runtime_dashboard.flask_owner_app
+DASHBOARD_PORT=8501 uv run python -m runtime_dashboard.flask_owner_app
 ```
 
-Use the sidebar **Data source** to switch between fixture JSON and the **State CRUD API**. The **API keys** page saves Browser Use, Gemini/Google, and Twelve Labs keys to `runtime_dashboard/.owner_secrets.json` (gitignored); `scripts/demo.py` injects those values into child processes.
+The **Runtime Setup** page stores Browser Use, Gemini/Google, Twelve Labs, and optional Chrome/CDP settings in `runtime_dashboard/.owner_secrets.json` (gitignored). The demo launcher uses exported env vars first, then saved dashboard settings, then auto-detected local Chrome defaults when possible. You can type just a local Chrome profile name such as `Profile 9` or `Default`, and the dashboard will resolve it against the detected Chrome user-data directory. There is also a one-click `Launch Local Chrome + Save CDP` action that opens a visible Chrome window and saves the resulting `BROWSER_USE_CDP_URL`. Live Browser Use runs default to a visible browser window unless `BROWSER_USE_HEADLESS=true` is set.
 
-## One-Command Demo
+## Core Demo Commands
 
-```bash
-uv run python -m scripts.demo
-```
-
-This starts:
-
-| Service | URL | Role |
-|--------|-----|------|
-| State CRUD API | `http://localhost:8000` | Demo seed data, contract collections |
-| Control plane | `http://localhost:8001` | Stage routers, `POST /pipeline/demo` |
-| Owner dashboard | `http://localhost:8501` | Pipeline views, API keys, demo controls |
-
-Trigger the pipeline from **Demo Control** in the UI, or:
+Once the full stack is running, these are the most useful commands:
 
 ```bash
+# Run the hackathon pipeline demo and persist the latest run
 curl -X POST http://localhost:8001/pipeline/demo
 ```
 
-Important: `POST /pipeline/demo` runs the stage-based control-plane demo (`identity -> discover -> generate -> distribute -> analyze`). The more specific Browser Use + TwelveLabs + Gemini + Veo UGC store flow lives in `packages/hackathon_pipelines` and is currently a separate implementation slice.
+```bash
+# Inspect the latest run
+curl http://localhost:8001/pipeline/latest-run
+```
 
-Options:
+```bash
+# Post the latest generated run (dry-run safe example)
+curl -X POST http://localhost:8001/pipeline/post-latest \
+  -H 'Content-Type: application/json' \
+  -d '{"dry_run": true}'
+```
 
-- `--no-dashboard` - API + control plane only
-- `--seed-only` - seed database and exit
-- `--api-port`, `--cp-port`, `--dash-port` - custom ports
+```bash
+# Re-run Instagram comment engagement for the latest post
+curl -X POST http://localhost:8001/pipeline/engage-latest \
+  -H 'Content-Type: application/json' \
+  -d '{"dry_run": true}'
+```
+
+```bash
+# List posted hackathon pipeline records with engagement summaries
+curl http://localhost:8001/pipeline/posts
+```
+
+The owner dashboard exposes the same flow from **Demo Control**:
+
+1. `Run Pipeline`
+2. `Post Latest Live`
+3. `Engage Latest Comments`
+
+Important:
+
+- `POST /pipeline/demo` drives the newer hackathon control-plane flow backed by `packages/hackathon_pipelines`.
+- The stage routers for the legacy stage-by-stage stack are still mounted under the State API / control-plane services, but the dashboard demo controls are aimed at the hackathon runtime flow.
+
+`scripts/demo.py` options:
+
+- `--no-dashboard` - start API + control plane only
+- `--seed-only` - seed and exit
+- `--api-port`, `--cp-port`, `--dash-port` - override default ports
 
 ## CLI Pipeline Demo
 

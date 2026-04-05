@@ -18,7 +18,7 @@ from packages.state.models import (
     VideoBlueprint,
 )
 from packages.state.registry import RepositoryRegistry
-from packages.state.sqlite import SQLiteRepository
+from packages.state.sqlite import Database, SQLiteRepository
 
 # ---------------------------------------------------------------------------
 # SQLiteRepository CRUD
@@ -26,6 +26,12 @@ from packages.state.sqlite import SQLiteRepository
 
 
 class TestSQLiteRepository:
+    @pytest.mark.asyncio
+    async def test_in_memory_database_connects(self) -> None:
+        db = Database(":memory:")
+        await db.connect()
+        await db.disconnect()
+
     @pytest.mark.asyncio
     async def test_create_and_get(self, registry: RepositoryRegistry) -> None:
         repo = registry.identity_matrix

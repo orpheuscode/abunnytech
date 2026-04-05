@@ -1,0 +1,69 @@
+{% extends "owner/base.html" %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #1f2937, #111827);">
+  <h1 style="margin:0;">Database Explorer</h1>
+  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Read-only visibility into the state and hackathon pipeline SQLite databases.</p>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;">
+  <div class="card">
+    <h3 style="margin-top:0;">Detected Databases</h3>
+    <p class="muted">Control plane: <code>{{ control_plane_base }}</code>{% if not control_plane_available %} (offline){% endif %}</p>
+    {% if not databases %}
+    <p class="muted">No databases detected.</p>
+    {% else %}
+    <form method="get" action="{{ url_for('page', slug='databases') }}">
+      <label class="muted">Database</label>
+      <select name="db" style="width:100%;margin:0.25rem 0 0.75rem;padding:0.45rem;border-radius:6px;background:#1e1e36;color:#e2e8f0;border:1px solid #6d28d9;">
+        {% for item in databases %}
+        <option value="{{ item.get('db_key') }}" {{ 'selected' if selected_db_key == item.get('db_key') else '' }}>
+          {{ item.get('filename') }} — {{ item.get('role') }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn">Inspect</button>
+    </form>
+    <hr class="sep">
+    {% for item in databases %}
+    <div class="card" style="margin-bottom:0.6rem;padding:0.75rem;">
+      <strong>{{ item.get('filename') }}</strong>
+      <p class="muted" style="margin:0.35rem 0 0;">{{ item.get('group') }} / {{ item.get('role') }}</p>
+      <p class="muted" style="margin:0.25rem 0 0;"><code>{{ item.get('path') }}</code></p>
+      <p class="muted" style="margin:0.25rem 0 0;">{{ item.get('tables', [])|length }} tables • {{ item.get('size_bytes', 0) }} bytes</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Selected Database</h3>
+    {% if detail %}
+    <p><strong>{{ detail.get('filename') }}</strong></p>
+    <p class="muted"><code>{{ detail.get('path') }}</code></p>
+    <p class="muted">Role: {{ detail.get('role') }} • Tables: {{ detail.get('table_summaries', [])|length }}</p>
+    {% if detail.get('table_summaries') %}
+    <form method="get" action="{{ url_for('page', slug='databases') }}">
+      <input type="hidden" name="db" value="{{ selected_db_key }}">
+      <label class="muted">Table</label>
+      <select name="table" style="width:100%;margin:0.25rem 0 0.75rem;padding:0.45rem;border-radius:6px;background:#1e1e36;color:#e2e8f0;border:1px solid #6d28d9;">
+        {% for table in detail.get('table_summaries', []) %}
+        <option value="{{ table.get('name') }}" {{ 'selected' if detail.get('selected_table') == table.get('name') else '' }}>
+          {{ table.get('name') }} ({{ table.get('row_count') }})
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn">Load Table</button>
+    </form>
+    {% endif %}
+    {% if detail.get('preview') %}
+    <hr class="sep">
+    <p><strong>Preview:</strong> {{ detail.get('preview', {}).get('table') }}</p>
+    <p class="muted">Rows: {{ detail.get('preview', {}).get('total_rows', 0) }} • Page {{ detail.get('preview', {}).get('page', 1) }}</p>
+    <pre class="json">{{ detail.get('preview', {}).get('rows', [])|tojson(indent=2) }}</pre>
+    {% endif %}
+    {% else %}
+    <p class="muted">Pick a database to inspect its tables and record previews.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

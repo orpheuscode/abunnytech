@@ -2,29 +2,80 @@
 {% block content %}
 <div class="page-head" style="background: linear-gradient(135deg, #2d3436, #636e72);">
   <h1 style="margin:0;">Demo Control Surface</h1>
-  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Operator tools for Gemini orchestration, full-pipeline runs, and artifact inspection.</p>
+  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Current e2e flow: identity + monetization context -> discovery -> generation -> post -> comment engagement.</p>
 </div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
   <div class="card">
-    <h3 style="margin-top:0;">Run Controls</h3>
+    <h3 style="margin-top:0;">E2E Run Controls</h3>
     <p class="muted">Control plane: <code>{{ control_plane_base }}</code>{% if not control_plane_available %} (offline){% endif %}</p>
+    <form method="post" action="{{ url_for('demo_run_instant_demo') }}" class="stack-sm" style="margin-bottom:0.9rem;">
+      <div class="field">
+        <label for="instant-demo-run-mode">Execution mode</label>
+        <select id="instant-demo-run-mode" name="run_mode">
+          <option value="live_visible" {{ 'selected' if demo_run_mode == 'live_visible' else '' }}>Live visible browser</option>
+          <option value="dry_run" {{ 'selected' if demo_run_mode == 'dry_run' else '' }}>Dry run</option>
+        </select>
+      </div>
+      <button type="submit" class="btn">Launch Instant Demo Mode</button>
+      <p class="muted" style="margin:0;">Starts three parallel lanes: reel discovery to video structure, video structure to Veo generation plus Instagram posting, and comment engagement.</p>
+    </form>
+    <hr class="sep">
+    <form method="post" action="{{ url_for('demo_run_pipeline') }}" class="stack-sm">
+      <div class="field">
+        <label for="pipeline-run-mode">Execution mode</label>
+        <select id="pipeline-run-mode" name="run_mode">
+          <option value="live_visible" {{ 'selected' if demo_run_mode == 'live_visible' else '' }}>Live visible browser</option>
+          <option value="dry_run" {{ 'selected' if demo_run_mode == 'dry_run' else '' }}>Dry run</option>
+        </select>
+      </div>
+      <button type="submit" class="btn">Run Pipeline</button>
+    </form>
+    <form method="post" action="{{ url_for('demo_post_latest') }}">
+      <button type="submit" class="btn">Post Latest Reel</button>
+    </form>
+    <form method="post" action="{{ url_for('demo_generate_video') }}" class="stack-sm">
+      <div class="field">
+        <label for="generate-video-run-mode">Execution mode</label>
+        <select id="generate-video-run-mode" name="run_mode">
+          <option value="live_visible" {{ 'selected' if demo_run_mode == 'live_visible' else '' }}>Live Gemini + Veo 3.1</option>
+          <option value="dry_run" {{ 'selected' if demo_run_mode == 'dry_run' else '' }}>Dry run</option>
+        </select>
+      </div>
+      <button type="submit" class="btn">Generate Video From Structure DB</button>
+      <p class="muted" style="margin:0;">Uses the stored video structure/template database, asks Gemini to build the Veo 3.1 prompt, and creates a fresh ready-to-post run.</p>
+    </form>
+    <form method="post" action="{{ url_for('demo_engage_latest') }}">
+      <button type="submit" class="btn">Engage Latest IG Comments</button>
+    </form>
+    <hr class="sep">
     <form method="post" action="{{ url_for('demo_run_gemini_orchestrator') }}" class="stack-sm">
       <div class="field">
         <label for="gemini-instruction">Gemini instruction</label>
-        <textarea id="gemini-instruction" name="instruction">Run the entire pipeline end to end for the shared Instagram storefront.</textarea>
+        <textarea id="gemini-instruction" name="instruction">Run the full storefront pipeline end to end: discover winning reels, build templates, pick the best product, generate the video, publish it, engage comments when live, and feed analytics back into the template store.</textarea>
+      </div>
+      <div class="field">
+        <label for="gemini-run-mode">Execution mode</label>
+        <select id="gemini-run-mode" name="run_mode">
+          <option value="live_visible" {{ 'selected' if demo_run_mode == 'live_visible' else '' }}>Live visible browser</option>
+          <option value="dry_run" {{ 'selected' if demo_run_mode == 'dry_run' else '' }}>Dry run</option>
+        </select>
       </div>
       <div>
-        <button type="submit" class="btn">Run Gemini Orchestrator</button>
+        <button type="submit" class="btn">Run Gemini E2E Orchestrator</button>
       </div>
-    </form>
-    <form method="post" action="{{ url_for('demo_run_pipeline') }}">
-      <button type="submit" class="btn">Run Entire Pipeline</button>
     </form>
   </div>
   <div class="card">
-    <h3 style="margin-top:0;">Start / Stop</h3>
+    <h3 style="margin-top:0;">Loop Runner</h3>
     <p class="muted">Use the loop controls when you want the pipeline to keep cycling until stopped.</p>
-    <form method="post" action="{{ url_for('demo_start_loop') }}">
+    <form method="post" action="{{ url_for('demo_start_loop') }}" class="stack-sm">
+      <div class="field">
+        <label for="loop-run-mode">Execution mode</label>
+        <select id="loop-run-mode" name="run_mode">
+          <option value="live_visible" {{ 'selected' if demo_run_mode == 'live_visible' else '' }}>Live visible browser</option>
+          <option value="dry_run" {{ 'selected' if demo_run_mode == 'dry_run' else '' }}>Dry run</option>
+        </select>
+      </div>
       <button type="submit" class="btn">Start Pipeline Loop</button>
     </form>
     <form method="post" action="{{ url_for('demo_stop_loop') }}">
@@ -41,7 +92,34 @@
     {% endif %}
   </div>
   <div class="card">
-    <h3 style="margin-top:0;">Pipeline Status</h3>
+    <h3 style="margin-top:0;">Active E2E Inputs</h3>
+    <p class="muted" style="margin:0;"><strong>Instagram identity:</strong> {{ active_identity.get('persona_name') }} ({{ active_identity.get('instagram_handle') }})</p>
+    <p class="muted" style="margin:0.35rem 0 0;"><strong>Tone:</strong> {{ active_identity.get('tone') }}</p>
+    {% if latest_product %}
+    <p class="muted" style="margin:0.75rem 0 0;"><strong>Monetization product:</strong> {{ latest_product.get('name') or 'n/a' }}</p>
+    <p class="muted" style="margin:0.35rem 0 0;">{{ latest_product.get('description') or 'No description yet.' }}</p>
+    {% else %}
+    <p class="muted" style="margin:0.75rem 0 0;">No monetization product loaded yet.</p>
+    {% endif %}
+    <hr class="sep">
+    <p class="muted" style="margin:0;"><strong>Browser runtime:</strong> {{ browser_runtime.get('source') }}</p>
+    <p class="muted" style="margin:0.35rem 0 0;"><strong>Window mode:</strong> {{ browser_runtime.get('mode_label') }}</p>
+    {% if browser_runtime.get('cdp_url') %}
+    <p class="muted" style="margin:0.35rem 0 0;"><strong>CDP:</strong> <code>{{ browser_runtime.get('cdp_url') }}</code></p>
+    {% else %}
+    <p class="muted" style="margin:0.35rem 0 0;"><strong>Chrome:</strong> <code>{{ browser_runtime.get('chrome_executable_path') or 'n/a' }}</code></p>
+    <p class="muted" style="margin:0.35rem 0 0;"><strong>Profile:</strong> {{ browser_runtime.get('chrome_profile_directory') or 'n/a' }}</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;">Readiness</h3>
+    <ul style="margin:0;padding-left:1.2rem;">
+      {% for label, ready, detail in readiness %}
+      <li>{% if ready %}OK{% else %}Missing{% endif %} <strong>{{ label }}:</strong> <span class="muted">{{ detail }}</span></li>
+      {% endfor %}
+    </ul>
+    <hr class="sep">
+    <h3 style="margin:0 0 0.75rem;">Pipeline Status</h3>
     <ul style="margin:0;padding-left:1.2rem;">
       {% for label, count in health %}
       <li>{% if count > 0 %}OK{% else %}Empty{% endif %} <strong>{{ label }}:</strong> {{ count }} record(s)</li>
@@ -51,6 +129,75 @@
 </div>
 <hr class="sep">
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;">
+  <div class="card">
+    <h3 style="margin-top:0;">Latest Run</h3>
+    {% if latest_run %}
+    <p><strong>Status:</strong> {{ latest_run.get('status', 'unknown')|upper }}</p>
+    <p class="muted">Run ID: <code>{{ latest_run.get('run_id') }}</code></p>
+    <p class="muted">Template: <code>{{ latest_run.get('selected_template_id') or 'n/a' }}</code></p>
+    <p class="muted">Discovered: {{ latest_run.get('reels_discovered', 0) }} / Queued: {{ latest_run.get('reels_queued', 0) }} / Structures: {{ latest_run.get('structures_persisted', 0) }}</p>
+    <div class="card-grid" style="margin-top:0.75rem;">
+      <div>
+        {% if latest_run_product_url %}
+        <img class="thumb" src="{{ latest_run_product_url }}" alt="Latest product">
+        {% else %}
+        <div class="thumb-placeholder">No product asset</div>
+        {% endif %}
+      </div>
+      <div>
+        <strong>{{ latest_run.get('product_title') or 'Uploaded product' }}</strong>
+        <p class="muted" style="margin:0.35rem 0 0;">{{ latest_run.get('product_description', '') }}</p>
+      </div>
+    </div>
+    <div class="card-grid" style="margin-top:0.75rem;">
+      <div>
+        {% if latest_run_avatar_url %}
+        <img class="thumb" src="{{ latest_run_avatar_url }}" alt="Latest avatar">
+        {% else %}
+        <div class="thumb-placeholder">No avatar asset</div>
+        {% endif %}
+      </div>
+      <div>
+        <p class="muted" style="margin:0;">Avatar path</p>
+        <code>{{ latest_run.get('avatar_image_path') or 'n/a' }}</code>
+      </div>
+    </div>
+    {% if latest_run_video_url %}
+    <video controls preload="metadata" style="width:100%;margin-top:0.75rem;border-radius:12px;border:1px solid #374151;background:#111827;">
+      <source src="{{ latest_run_video_url }}" type="video/mp4">
+    </video>
+    {% endif %}
+    <p style="margin:0.75rem 0 0;"><strong>Caption draft</strong></p>
+    <pre class="json" style="margin-top:0.5rem;white-space:pre-wrap;">{{ latest_run.get('caption', '') }}</pre>
+    {% if latest_run.get('post_url') %}
+    <p style="margin-top:0.75rem;"><strong>Post URL:</strong> <a href="{{ latest_run.get('post_url') }}" target="_blank" rel="noreferrer">{{ latest_run.get('post_url') }}</a></p>
+    {% endif %}
+    {% set engagement = latest_run.get('engagement_summary') or {} %}
+    <hr class="sep">
+    <h4 style="margin:0 0 0.5rem;">Comment Engagement</h4>
+    <p class="muted" style="margin:0;">Status: {{ (engagement.get('status') or 'not_run')|upper }}</p>
+    <p class="muted" style="margin:0.25rem 0 0;">Replies logged: {{ engagement.get('total_replies_logged', 0) }}</p>
+    <p class="muted" style="margin:0.25rem 0 0;">Last run: {{ engagement.get('last_run_at') or 'n/a' }}</p>
+    {% if engagement.get('last_reason') %}
+    <p class="muted" style="margin:0.25rem 0 0;">Reason: {{ engagement.get('last_reason') }}</p>
+    {% endif %}
+    {% if engagement.get('last_error') %}
+    <p style="color:#f87171;margin:0.5rem 0 0;">{{ engagement.get('last_error') }}</p>
+    {% endif %}
+    {% if engagement.get('recent_replies') %}
+    <div style="margin-top:0.75rem;">
+      <strong>Recent replies</strong>
+      <ul style="margin:0.5rem 0 0;padding-left:1.2rem;">
+        {% for reply in engagement.get('recent_replies', []) %}
+        <li class="muted">@{{ reply.get('commenter_handle') or 'unknown' }} -> {{ reply.get('response_text') }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="muted">No pipeline run has been recorded yet.</p>
+    {% endif %}
+  </div>
   <div class="card">
     <h3 style="margin-top:0;">Inspect Artifacts</h3>
     <form method="get" action="{{ url_for('page', slug='demo') }}">

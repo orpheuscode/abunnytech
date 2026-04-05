@@ -12,10 +12,14 @@ setting `BROWSER_USE_LLM` to `google`, `openai`, or `anthropic`.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 import os
+import shutil
+import tempfile
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -46,6 +50,7 @@ class BrowserUseBrowserConfig(BaseModel):
     use_cloud: bool | None = None
     headless: bool | None = None
     keep_alive: bool | None = None
+    isolate_local_browser_profile: bool | None = None
     executable_path: str | None = None
     user_data_dir: str | None = None
     profile_directory: str | None = None
@@ -61,7 +66,7 @@ class BrowserUseBrowserConfig(BaseModel):
     extra_kwargs: dict[str, Any] = Field(default_factory=dict)
 
     def to_browser_kwargs(self) -> dict[str, Any]:
-        data = self.model_dump(exclude_none=True, exclude={"extra_kwargs"})
+        data = self.model_dump(exclude_none=True, exclude={"extra_kwargs", "isolate_local_browser_profile"})
         data.update(self.extra_kwargs)
         return data
 
@@ -80,6 +85,7 @@ class BrowserUseAgentConfig(BaseModel):
     extend_system_message: str | None = None
     flash_mode: bool | None = None
     use_thinking: bool | None = None
+    directly_open_url: bool | None = None
 
     def to_agent_kwargs(self) -> dict[str, Any]:
         return self.model_dump(exclude_none=True)
@@ -184,6 +190,42 @@ def _agent_config_from_task(task: AgentTask) -> BrowserUseAgentConfig:
     return BrowserUseAgentConfig()
 
 
+def _agent_passthrough_kwargs_from_task(task: AgentTask) -> dict[str, Any]:
+    """Allow task-local Browser Use objects such as custom tools."""
+
+    extras: dict[str, Any] = {}
+    tools = task.metadata.get("browser_use_tools")
+    if tools is not None:
+        extras["tools"] = tools
+
+    output_model_schema = task.metadata.get("browser_use_output_model_schema")
+    if output_model_schema is not None:
+        extras["output_model_schema"] = output_model_schema
+
+    raw_agent_kwargs = task.metadata.get("browser_use_agent_kwargs")
+    if isinstance(raw_agent_kwargs, dict):
+        extras.update(raw_agent_kwargs)
+
+    return extras
+
+
+def _browser_config_from_task(task: AgentTask) -> BrowserUseBrowserConfig | None:
+    raw = task.metadata.get("browser_use_browser")
+    if isinstance(raw, BrowserUseBrowserConfig):
+        return raw
+    if isinstance(raw, dict):
+        return BrowserUseBrowserConfig.model_validate(raw)
+
+    legacy: dict[str, Any] = {}
+    for field_name in BrowserUseBrowserConfig.model_fields:
+        legacy_key = f"browser_use_browser_{field_name}"
+        if legacy_key in task.metadata:
+            legacy[field_name] = task.metadata[legacy_key]
+    if legacy:
+        return BrowserUseBrowserConfig.model_validate(legacy)
+    return None
+
+
 class BrowserUseProvider(BrowserProvider):
     """
     Wraps the browser-use Agent to execute open-ended browsing tasks.
@@ -218,15 +260,75 @@ class BrowserUseProvider(BrowserProvider):
     def dry_run(self) -> bool:
         return self._dry_run
 
-    def _build_browser(self) -> Any | None:
+    def _build_browser(self, task: AgentTask) -> tuple[Any | None, Path | None]:
+        task_browser_config = _browser_config_from_task(task)
+        if self._browser_config is None and task_browser_config is None:
+            return None, None
         if self._browser_config is None:
-            return None
-        browser_kwargs = self._browser_config.to_browser_kwargs()
+            resolved_config = task_browser_config.model_copy(deep=True)
+        elif task_browser_config is None:
+            resolved_config = self._browser_config.model_copy(deep=True)
+        else:
+            override_payload = task_browser_config.model_dump(
+                exclude_unset=True,
+                exclude={"extra_kwargs"},
+            )
+            resolved_config = self._browser_config.model_copy(
+                update={
+                    **override_payload,
+                    "extra_kwargs": {
+                        **self._browser_config.extra_kwargs,
+                        **task_browser_config.extra_kwargs,
+                    },
+                },
+                deep=True,
+            )
+        cleanup_dir: Path | None = None
+        if (
+            resolved_config.isolate_local_browser_profile
+            and resolved_config.cdp_url is None
+            and resolved_config.executable_path
+            and resolved_config.user_data_dir
+            and resolved_config.profile_directory
+        ):
+            source_root = Path(resolved_config.user_data_dir)
+            profile_source = source_root / resolved_config.profile_directory
+            if not profile_source.exists():
+                msg = f"Chrome profile does not exist for isolated Browser Use task: {profile_source}"
+                raise FileNotFoundError(msg)
+            cleanup_dir = Path(tempfile.mkdtemp(prefix=f"browser-use-{task.task_id[:8]}-"))
+            for file_name in ("Local State", "First Run"):
+                source_file = source_root / file_name
+                if source_file.exists():
+                    shutil.copy2(source_file, cleanup_dir / file_name)
+            shutil.copytree(profile_source, cleanup_dir / resolved_config.profile_directory)
+            resolved_config = resolved_config.model_copy(
+                update={
+                    "user_data_dir": str(cleanup_dir),
+                    # Isolated task profiles should not stay alive after the task finishes.
+                    "keep_alive": False,
+                }
+            )
+
+        browser_kwargs = resolved_config.to_browser_kwargs()
         if not browser_kwargs:
-            return None
+            return None, cleanup_dir
         from browser_use import Browser
 
-        return Browser(**browser_kwargs)
+        return Browser(**browser_kwargs), cleanup_dir
+
+    async def _close_browser(self, browser: Any | None, *, cleanup_dir: Path | None) -> None:
+        if browser is not None:
+            closer = getattr(browser, "close", None)
+            if callable(closer):
+                try:
+                    maybe_awaitable = closer()
+                    if inspect.isawaitable(maybe_awaitable):
+                        await maybe_awaitable
+                except Exception:
+                    pass
+        if cleanup_dir is not None:
+            shutil.rmtree(cleanup_dir, ignore_errors=True)
 
     async def run_agent_task(self, task: AgentTask) -> AgentResult:
         self._assert_not_killed()
@@ -244,7 +346,8 @@ class BrowserUseProvider(BrowserProvider):
 
         self._audit.log_request("browser_use", "run_agent_task", task.task_id, False)
         llm = self._injected_llm or _build_default_llm(self._llm_model)
-        browser = self._build_browser()
+        browser = None
+        cleanup_dir: Path | None = None
         agent_config = _agent_config_from_task(task)
         full_task = task.description
         if task.url:
@@ -256,11 +359,13 @@ class BrowserUseProvider(BrowserProvider):
             max_actions_per_step=agent_config.max_actions_per_step or min(10, max(3, task.max_steps // 4 or 5)),
         )
         agent_kwargs.update(agent_config.to_agent_kwargs())
-        if browser is not None:
-            agent_kwargs["browser"] = browser
-        agent = Agent(**agent_kwargs)
+        agent_kwargs.update(_agent_passthrough_kwargs_from_task(task))
         start = time.monotonic()
         try:
+            browser, cleanup_dir = self._build_browser(task)
+            if browser is not None:
+                agent_kwargs["browser"] = browser
+            agent = Agent(**agent_kwargs)
             history = await agent.run(max_steps=task.max_steps)
         except Exception as exc:
             self._audit.log(
@@ -277,6 +382,8 @@ class BrowserUseProvider(BrowserProvider):
                 error=str(exc),
                 dry_run=False,
             )
+        finally:
+            await self._close_browser(browser, cleanup_dir=cleanup_dir)
 
         duration = time.monotonic() - start
         final_text = history.final_result()

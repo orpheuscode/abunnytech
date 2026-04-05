@@ -11,12 +11,37 @@ from google.genai import types as genai_types
 
 from hackathon_pipelines.orchestrator import HackathonOrchestrator
 
-_META_SYSTEM = """You are the control plane for an autonomous UGC video pipeline.
-You must accomplish the user's goal by calling the provided tools. Each tool runs a real pipeline stage
-(reel discovery → templates, product-ranked video generation, or publish + analytics feedback).
-Call tools in a sensible order. When the goal is satisfied, reply with a short plain-text summary of what
-ran and key outcomes.
-Do not invent tool results; always use the tools."""
+_META_SYSTEM = """You are the control plane for an autonomous UGC storefront pipeline.
+Your job is to complete the user's goal by calling the provided tools until the workflow is done.
+
+PIPELINE CAPABILITIES:
+- run_reel_to_template_cycle:
+  Browser-led reel discovery -> download/analysis -> Gemini template selection -> template persistence.
+- run_product_to_video:
+  Product ranking for the requested niche -> ensure templates exist -> Gemini/Veo-style video generation
+  using the provided product and avatar assets.
+- run_publish_and_feedback:
+  Publish an existing media file, fetch analytics, and update template performance labels.
+  In live mode, a successful publish also triggers Instagram comment engagement automatically.
+- run_closed_loop_cycle:
+  Full end-to-end loop in one call:
+  discovery -> template creation -> product ranking -> video generation -> publish ->
+  comment engagement in live mode -> analytics feedback.
+
+OPERATING RULES:
+1. Prefer run_closed_loop_cycle when the user wants the whole pipeline, end-to-end storefront execution,
+   posting plus comment handling, or anything close to "do everything".
+2. Prefer narrower tools only when the user clearly asks for a partial workflow or when you already have
+   the required artifact/template context from earlier tool calls.
+3. Reuse the exact parameter values provided in the user task block. Do not rewrite file paths, caption
+   text, dry_run, or other supplied arguments unless the user explicitly asks.
+4. If a tool returns an error or missing context, adapt by calling the next sensible tool; do not invent
+   successful results.
+5. Keep the number of tool calls minimal while still satisfying the goal.
+6. Never invent tool outputs, post URLs, IDs, analytics, or engagement results. Only report what tools return.
+7. When the goal is satisfied, reply with a short plain-text summary covering what ran, major outcomes,
+   and whether publishing, comment engagement, and analytics feedback happened.
+"""
 
 
 def _pipeline_tool_declarations() -> genai_types.Tool:
@@ -59,7 +84,8 @@ def _pipeline_tool_declarations() -> genai_types.Tool:
             genai_types.FunctionDeclaration(
                 name="run_publish_and_feedback",
                 description=(
-                    "Publish a reel (dry-run by default), fetch analytics, and update template performance labels."
+                    "Publish a reel (dry-run by default), fetch analytics, update template performance labels, "
+                    "and in live mode automatically engage post comments after a successful publish."
                 ),
                 parameters=genai_types.Schema(
                     type=genai_types.Type.OBJECT,
@@ -82,6 +108,43 @@ def _pipeline_tool_declarations() -> genai_types.Tool:
                         ),
                     },
                     required=["media_path", "caption", "template_id"],
+                ),
+            ),
+            genai_types.FunctionDeclaration(
+                name="run_closed_loop_cycle",
+                description=(
+                    "Run the full storefront loop end to end: reel discovery, template creation, product ranking, "
+                    "video generation, publish, comment engagement in live mode, and analytics feedback."
+                ),
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={
+                        "product_image_path": genai_types.Schema(
+                            type=genai_types.Type.STRING,
+                            description="Filesystem path to product reference image.",
+                        ),
+                        "avatar_image_path": genai_types.Schema(
+                            type=genai_types.Type.STRING,
+                            description="Filesystem path to avatar / creator reference image.",
+                        ),
+                        "niche_query": genai_types.Schema(
+                            type=genai_types.Type.STRING,
+                            description="Product discovery query (e.g. dropship niche).",
+                        ),
+                        "caption": genai_types.Schema(
+                            type=genai_types.Type.STRING,
+                            description="Caption to use for the generated post.",
+                        ),
+                        "media_path": genai_types.Schema(
+                            type=genai_types.Type.STRING,
+                            description="Optional path for the publishable video artifact.",
+                        ),
+                        "dry_run": genai_types.Schema(
+                            type=genai_types.Type.BOOLEAN,
+                            description="If true, simulate publish/comment actions instead of using the real browser.",
+                        ),
+                    },
+                    required=["product_image_path", "avatar_image_path"],
                 ),
             ),
         ]
@@ -110,6 +173,15 @@ async def dispatch_pipeline_tool(
                 media_path=str(raw["media_path"]),
                 caption=str(raw["caption"]),
                 template_id=str(raw["template_id"]),
+                dry_run=bool(raw.get("dry_run", True)),
+            )
+        elif name == "run_closed_loop_cycle":
+            summary = await orchestrator.run_closed_loop_cycle(
+                product_image_path=str(raw["product_image_path"]),
+                avatar_image_path=str(raw["avatar_image_path"]),
+                niche_query=str(raw.get("niche_query") or "dropship"),
+                caption=str(raw.get("caption") or "Auto-generated UGC"),
+                media_path=str(raw["media_path"]) if raw.get("media_path") else None,
                 dry_run=bool(raw.get("dry_run", True)),
             )
         else:
