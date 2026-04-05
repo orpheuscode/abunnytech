@@ -1,0 +1,3 @@
+twelvelabs
+google-genai
+python-dotenv
