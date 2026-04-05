@@ -9,6 +9,8 @@ __pycache__/
 runtime_dashboard/.owner_secrets.json
 .venv/
 venv/
+.codex
+.vscode/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
@@ -17,6 +19,16 @@ examples/stage2/out/
 dist/
 .python-version.bak
 data/reels/
+data/dashboard_chrome_runtime/
+data/loop_runner/
+data/reference_assets/
+data/tmp_reels_instaloader/
+data/test mp4/
 data/chrome*/
 data/*.sqlite3
+output/hackathon_prompt_artifacts/
+output/hackathon_thumbnails/
+output/hackathon_upload_ready/
 output/hackathon_videos/
+output/stage5_drafts/
+runtime_dashboard/static/uploads/

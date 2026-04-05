@@ -1,72 +1,39 @@
 # abunnytech - Autonomous AI Creator Pipeline
 
-An end-to-end UGC store pipeline that uses Browser Use, TwelveLabs, Gemini, and Veo to discover winning reels and products, generate ad videos, post them, measure performance, and feed the results back into the next cycle.
+System overview:
 
-## UGC Store Pipeline
+> This system is an autonomous UGC ad engine that uses Browser Use, TwelveLabs, Gemini, and Veo 3.1 to generate, post, and optimize product videos on Instagram. In the current codebase, the primary input path is user-provided product uploads into the product catalog. Reel discovery remains in the repo, but AliExpress/product discovery is no longer the primary workflow described here.
 
-Simple one-line version:
+Current primary flow:
 
-> Browser Use finds winning reels and products, TwelveLabs turns reels into structured templates, Gemini decides reuse/remake/discard and writes the Veo prompt, Veo makes the video, and Browser Use posts to Instagram and feeds performance back into the next cycle.
+> User uploads product -> product is stored in `product_catalog` -> Gemini builds prompts from stored video structures/templates -> Veo 3.1 generates the video -> Browser Use posts it to Instagram -> Browser Use engages with comments -> analytics feed back into template reuse/remake/discard decisions.
 
-Core APIs used by the intended pipeline:
-
-- **Browser Use** - browses Instagram Reels, extracts visible metrics, downloads reels that pass a threshold, browses AliExpress and social platforms for product discovery, posts generated videos to Instagram, and re-checks posts later for performance data.
-- **TwelveLabs** - analyzes downloaded reels and extracts structured video understanding such as scenes/actions, hook, audio/music, and style.
-- **Gemini API** - acts as the orchestrator across reel discovery, product discovery, video generation, and social feedback loops; decides whether templates should be reused, remade, or discarded; writes the Veo prompt.
-- **Veo 3.1** - generates the final ad/reel video from the Gemini-authored prompt plus reference assets.
-
-Implementation entrypoints for this pipeline:
-
-- `packages/hackathon_pipelines/src/hackathon_pipelines/orchestrator.py`
-- `packages/hackathon_pipelines/src/hackathon_pipelines/gemini_tool_orchestrator.py`
-- `packages/hackathon_pipelines/src/hackathon_pipelines/pipelines/reel_discovery.py`
-- `packages/hackathon_pipelines/src/hackathon_pipelines/pipelines/product_discovery.py`
-- `packages/hackathon_pipelines/src/hackathon_pipelines/pipelines/video_generation.py`
-- `packages/hackathon_pipelines/src/hackathon_pipelines/pipelines/social_media.py`
-- `packages/hackathon_pipelines/src/hackathon_pipelines/adapters/live_api.py`
-
-## Architecture
+## Main Services
 
 ```text
-                       +-------------------------+
-                       |  Flask owner dashboard  |  :8501
-                       +------------+------------+
-                                    |
-          +-------------------------+-------------------------+
-          |                                                   |
-  +-------v--------+                                 +-------v--------+
-  | State CRUD API |  :8000                          | Control plane  |  :8001
-  | (FastAPI)      |                                 | (FastAPI)      |
-  +--------+-------+                                 +--------+-------+
-           |                                                    |
-           |              +-------------------------------------+
-           |              |
-  +--------v--------------v------+
-  |      Pipeline stages          |
-  |  0 Identity · 1 Discovery     |  Persona, trends, competitors
-  |  2 Content  · 3 Distribution  |  Blueprints, packages, posting
-  |  4 Analytics · 5 Monetization |  Metrics, redo queue
-  +----------------+--------------+
-                   |
-           +-------v--------+        +-----------------+
-           | SQLite state   |        | browser_runtime |
-           +----------------+        +-----------------+
+Flask owner dashboard   :8501
+State API               :8000
+Control plane           :8001
+SQLite                  data/hackathon_pipelines.sqlite3
 ```
 
-Default ports match `scripts/demo.py` and can be overridden with `--api-port`, `--cp-port`, and `--dash-port`.
+Main implementation paths:
+
+- `packages/hackathon_pipelines/src/hackathon_pipelines/pipelines/reel_discovery.py`
+- `packages/hackathon_pipelines/src/hackathon_pipelines/pipelines/video_generation.py`
+- `packages/hackathon_pipelines/src/hackathon_pipelines/pipelines/db_to_video_generation.py`
+- `packages/hackathon_pipelines/src/hackathon_pipelines/pipelines/social_media.py`
+- `packages/hackathon_pipelines/src/hackathon_pipelines/adapters/live_api.py`
+- `services/control_plane/app.py`
+- `runtime_dashboard/flask_owner_app.py`
 
 ## Quickstart
 
-### Full stack in one command
+### Full stack
 
 ```bash
-# 1. Install dependencies
 uv sync
-
-# 2. Optional env file for non-dry-run keys/settings
 cp .env.example .env
-
-# 3. Start state API + control plane + owner dashboard
 uv run python -m scripts.demo
 ```
 
@@ -74,52 +41,71 @@ Open:
 
 - Dashboard: `http://localhost:8501`
 - State API docs: `http://localhost:8000/docs`
-- Control plane: `http://localhost:8001`
+- Control plane docs: `http://localhost:8001/docs`
 
-Use `uv run python -m scripts.demo` rather than `uv run python scripts/demo.py`; the module form preserves imports for `runtime_dashboard`.
+### Primary product-input API
+
+```bash
+curl -X POST http://localhost:8000/product_catalog \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "My Product",
+    "description": "Short description for the offer",
+    "price_cents": 4900,
+    "url": "https://store.example.com/product",
+    "image_url": "/static/uploads/products/product-example.png"
+  }'
+```
 
 ### Run services separately
 
-If you want the API, control plane, and dashboard in separate terminals:
-
 ```bash
-# Terminal 1: State CRUD API
 uv run python -m uvicorn state_api.main:app --host 0.0.0.0 --port 8000
 ```
 
 ```bash
-# Terminal 2: Control plane
 uv run python -m uvicorn services.control_plane.app:app --host 0.0.0.0 --port 8001
 ```
 
 ```bash
-# Terminal 3: Owner dashboard
 DASHBOARD_PORT=8501 uv run python -m runtime_dashboard.flask_owner_app
 ```
 
-The dashboard can then use:
+## Dashboard Runtime Setup
 
-- Fixture mode for static demo data
-- Local API mode with `http://localhost:8000`
-- Control-plane actions against `http://localhost:8001`
+The dashboard stores runtime secrets and browser config in `runtime_dashboard/.owner_secrets.json`.
 
-### Dashboard only
+Supported runtime setup:
 
-If the backends are already running:
+- `BROWSER_USE_API_KEY`
+- `GOOGLE_API_KEY`
+- `TWELVE_LABS_API_KEY`
+- `BROWSER_USE_CDP_URL`
+- `CHROME_EXECUTABLE_PATH`
+- `CHROME_USER_DATA_DIR`
+- `CHROME_PROFILE_DIRECTORY`
+
+Notes:
+
+- exported env vars are used first
+- saved dashboard settings are used next
+- local Chrome can be auto-detected
+- you can type a profile name like `Profile 9` or `Default`
+- `Launch Local Chrome + Save CDP` opens a visible Chrome window and saves the CDP URL
+- live Browser Use defaults to visible windows unless `BROWSER_USE_HEADLESS=true`
+
+## Core Control-Plane Endpoints
 
 ```bash
-DASHBOARD_PORT=8501 uv run python -m runtime_dashboard.flask_owner_app
-```
-
-The **Runtime Setup** page stores Browser Use, Gemini/Google, Twelve Labs, and optional Chrome/CDP settings in `runtime_dashboard/.owner_secrets.json` (gitignored). The demo launcher uses exported env vars first, then saved dashboard settings, then auto-detected local Chrome defaults when possible. You can type just a local Chrome profile name such as `Profile 9` or `Default`, and the dashboard will resolve it against the detected Chrome user-data directory. There is also a one-click `Launch Local Chrome + Save CDP` action that opens a visible Chrome window and saves the resulting `BROWSER_USE_CDP_URL`. Live Browser Use runs default to a visible browser window unless `BROWSER_USE_HEADLESS=true` is set.
-
-## Core Demo Commands
-
-Once the full stack is running, these are the most useful commands:
-
-```bash
-# Run the hackathon pipeline demo and persist the latest run
+# Legacy full discovery -> structure -> generation pipeline
 curl -X POST http://localhost:8001/pipeline/demo
+```
+
+```bash
+# Primary current path: generate a new video from the uploaded product catalog + saved video-structure/template DB
+curl -X POST http://localhost:8001/pipeline/generate-video \
+  -H 'Content-Type: application/json' \
+  -d '{"dry_run": true}'
 ```
 
 ```bash
@@ -128,137 +114,82 @@ curl http://localhost:8001/pipeline/latest-run
 ```
 
 ```bash
-# Post the latest generated run (dry-run safe example)
+# Post the latest ready run
 curl -X POST http://localhost:8001/pipeline/post-latest \
   -H 'Content-Type: application/json' \
   -d '{"dry_run": true}'
 ```
 
 ```bash
-# Re-run Instagram comment engagement for the latest post
+# Re-run comment engagement for the latest post
 curl -X POST http://localhost:8001/pipeline/engage-latest \
   -H 'Content-Type: application/json' \
   -d '{"dry_run": true}'
 ```
 
 ```bash
-# List posted hackathon pipeline records with engagement summaries
+# List posted records with engagement summaries
 curl http://localhost:8001/pipeline/posts
 ```
 
-The owner dashboard exposes the same flow from **Demo Control**:
-
-1. `Run Pipeline`
-2. `Post Latest Live`
-3. `Engage Latest Comments`
-
-Important:
-
-- `POST /pipeline/demo` drives the newer hackathon control-plane flow backed by `packages/hackathon_pipelines`.
-- The stage routers for the legacy stage-by-stage stack are still mounted under the State API / control-plane services, but the dashboard demo controls are aimed at the hackathon runtime flow.
-
-`scripts/demo.py` options:
-
-- `--no-dashboard` - start API + control plane only
-- `--seed-only` - seed and exit
-- `--api-port`, `--cp-port`, `--dash-port` - override default ports
-
-## CLI Pipeline Demo
-
-In-process dry-run demo with no HTTP servers:
-
 ```bash
-uv run python -m orchestrator.cli demo
+# Demo mode: start the three parallel background lanes
+curl -X POST http://localhost:8001/pipeline/demo-mode \
+  -H 'Content-Type: application/json' \
+  -d '{"dry_run": true}'
 ```
 
-Other commands: `identity`, `status` - see `uv run python -m orchestrator.cli --help`.
+Demo mode currently starts three parallel lanes:
 
-## Hackathon Pipeline Smoke
+1. `reel discovery -> video structure`
+2. `video structure -> video gen + instagram posting`
+3. `comment engagement`
 
-The Browser Use + TwelveLabs + Gemini + Veo implementation is covered by the `hackathon_pipelines` package tests:
+The repo still contains discovery-oriented paths, but the product-upload flow above is the primary path reflected in the active dashboard and current usage.
+
+## Dashboard Demo Controls
+
+The dashboard exposes the current active control flow:
+
+1. `Run Pipeline`
+2. `Generate Video From Structure DB`
+3. `Post Latest Reel`
+4. `Engage Latest IG Comments`
+5. `Launch Instant Demo Mode`
+
+`Launch Instant Demo Mode` starts the three background lanes above.
+
+## Tests
 
 ```bash
 uv run pytest packages/hackathon_pipelines/tests -q
+uv run pytest tests/runtime -q
 ```
 
-These dry-run tests exercise:
+## Useful Environment Variables
 
-- reel discovery -> template creation
-- product discovery -> video generation
-- publish -> analytics feedback -> template performance update
-
-## Tests and Smoke Checks
-
-```bash
-# Full integration test tree
-uv run pytest tests -q
-
-# Broader integration smoke
-uv run python scripts/smoke.py --verbose
-```
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DRY_RUN` | `true` | No real platform posts when true |
-| `FEATURE_STAGE5_MONETIZE` | `false` | Enable Stage 5 monetization endpoints and data |
-| `DATABASE_URL` | `sqlite+aiosqlite:///./abunnytech.db` | Async SQLAlchemy database URL |
-| `DASHBOARD_PORT` | `8501` | Owner dashboard listen port |
-| `OWNER_DASHBOARD_SECRET` | _(dev default)_ | Flask session secret |
-| `CONTROL_PLANE_HOST` / `CONTROL_PLANE_PORT` | `0.0.0.0` / `8000` | `scripts/demo.py` uses `8001` for the control plane unless overridden |
-| `OPENAI_API_KEY` | _(empty)_ | Browser Use key for OpenAI-backed paths |
-| `GOOGLE_API_KEY` / `GEMINI_API_KEY` | _(empty)_ | Gemini / Google APIs |
-| `TWELVE_LABS_API_KEY` / `TWELVELABS_API_KEY` | _(empty)_ | Twelve Labs video understanding |
-| `ELEVENLABS_API_KEY` | _(empty)_ | Voice synthesis when enabled |
-| `TIKTOK_SESSION_ID` / `INSTAGRAM_SESSION_ID` | _(empty)_ | Live posting sessions when not in dry-run |
-| `KILL_SWITCH` | `false` | Emergency stop for browser automation |
-
-## Feature Flags
-
-| Flag | Default | Effect |
-|------|---------|--------|
-| `FEATURE_STAGE5_MONETIZE` | `false` | Unlocks monetization endpoints and catalog data |
-| `DRY_RUN` | `true` | Distribution stays simulated; records marked `dry_run` |
-| `KILL_SWITCH` | `false` | Blocks browser automation operations |
+| Variable | Description |
+|----------|-------------|
+| `DRY_RUN` | Keeps posting/generation in dry-run mode |
+| `BROWSER_USE_API_KEY` | Browser Use API key |
+| `GOOGLE_API_KEY` | Gemini / Veo API key |
+| `TWELVE_LABS_API_KEY` | TwelveLabs API key |
+| `BROWSER_USE_CDP_URL` | Connect to an existing visible Chrome debug instance |
+| `CHROME_EXECUTABLE_PATH` | Local Chrome binary path |
+| `CHROME_USER_DATA_DIR` | Local Chrome user-data root |
+| `CHROME_PROFILE_DIRECTORY` | Chrome profile name such as `Profile 9` |
+| `DASHBOARD_PORT` | Owner dashboard port |
+| `OWNER_DASHBOARD_SECRET` | Flask session secret |
 
 ## Project Layout
 
 ```text
 abunnytech/
-|-- runtime_dashboard/       # Flask owner UI, templates, fixtures, local API key file
+|-- runtime_dashboard/       # Flask owner UI
 |-- state_api/               # State CRUD API
-|-- services/control_plane/  # Pipeline demo + stage routers
-|-- apps/m1/api/             # Creator pipeline HTTP API (stages 0-2)
-|-- orchestrator/            # Typer CLI
-|-- packages/                # contracts, core, browser_runtime, hackathon_pipelines
-|-- agents/                  # Stage agent CLIs
-|-- stages/                  # Stage implementations (0-5)
-|-- scripts/                 # demo.py, smoke.py
-|-- tests/                   # Integration and contract tests
-|-- integration/             # Handoff manifest, env template, smoke helper
-|-- examples/                # Contract fixtures and schemas
-|-- stage-0-1-2/             # Archived / snapshot subtree
-|-- stage-0-5/               # Archived / snapshot subtree
-|-- stage-3-4/               # Archived / snapshot subtree
-`-- docs/                    # Architecture and handoffs
+|-- services/control_plane/  # Control plane endpoints
+|-- packages/browser_runtime/
+|-- packages/hackathon_pipelines/
+|-- scripts/                 # demo launcher and helper scripts
+`-- tests/
 ```
-
-## Pipeline Stages (Demo Flow)
-
-1. **Identity** - AI persona (voice, avatar, platform targets)
-2. **Discovery** - trends, competitors, training signals
-3. **Content** - video blueprints and content packages
-4. **Distribution** - queue posts (dry-run or live)
-5. **Analytics** - metrics, optimization directives, redo queue
-6. **Monetization** - optional catalog and brand workflows when enabled
-
-## Stack
-
-- **Python 3.12** and **uv** workspaces
-- **FastAPI** + **uvicorn** for HTTP services
-- **Flask** + **Jinja2** for the owner dashboard
-- **Pydantic v2** for contracts
-- **SQLite** (aiosqlite + SQLAlchemy) for persistence
-- **Typer** / **Rich** for CLI output
-- **browser_runtime** for browser automation abstraction
