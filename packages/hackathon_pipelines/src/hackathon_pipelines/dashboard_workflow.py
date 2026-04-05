@@ -524,6 +524,63 @@ def _find_latest_postable_run(store: SQLiteHackathonStore) -> HackathonRunRecord
     return None
 
 
+def _select_engagement_run_context(
+    store: SQLiteHackathonStore,
+    *,
+    posted_post_url: str,
+) -> HackathonRunRecord | None:
+    """Pick the best run context for a posted-content engagement request."""
+
+    runs = store.list_runs()
+    for run in runs:
+        if str(run.post_url or "").strip() == posted_post_url:
+            return run
+    for run in runs:
+        if run.status == HackathonRunStatus.FAILED:
+            continue
+        if run.post_draft is not None or run.engagement_persona is not None:
+            return run
+    return next((run for run in runs if run.status != HackathonRunStatus.FAILED), store.latest_run())
+
+
+def _resolve_engagement_target(
+    store: SQLiteHackathonStore,
+    *,
+    run_id: str | None = None,
+) -> tuple[HackathonRunRecord, str]:
+    """Return the run context and post URL to use for comment engagement."""
+
+    if run_id:
+        run = store.get_run(run_id)
+        if run is None:
+            msg = "Pipeline run not found."
+            raise RuntimeError(msg)
+        post_url = str(run.post_url or "").strip()
+        if not post_url:
+            msg = "The selected pipeline run has not been posted yet."
+            raise RuntimeError(msg)
+        return run, post_url
+
+    for run in store.list_runs():
+        post_url = str(run.post_url or "").strip()
+        if post_url:
+            return run, post_url
+
+    posted_records = store.list_posted_content()
+    if not posted_records:
+        msg = "No posted Instagram content exists yet."
+        raise RuntimeError(msg)
+    post_url = str(posted_records[0].post_url or "").strip()
+    if not post_url:
+        msg = "The latest posted content record is missing a post URL."
+        raise RuntimeError(msg)
+    run = _select_engagement_run_context(store, posted_post_url=post_url)
+    if run is None:
+        msg = "No pipeline run exists yet."
+        raise RuntimeError(msg)
+    return run, post_url
+
+
 async def _wait_for_run_ready_to_post(
     *,
     store: SQLiteHackathonStore,
@@ -1053,14 +1110,7 @@ async def engage_latest_posted_run(
     dry_run: bool,
     run_id: str | None = None,
 ) -> tuple[HackathonRunRecord, CommentEngagementSummary]:
-    run = store.get_run(run_id) if run_id else store.latest_run()
-    if run is None:
-        msg = "No pipeline run exists yet."
-        raise RuntimeError(msg)
-    post_url = str(run.post_url or "")
-    if not post_url:
-        msg = "The selected pipeline run has not been posted yet."
-        raise RuntimeError(msg)
+    run, post_url = _resolve_engagement_target(store, run_id=run_id)
 
     if store.get_posted_content(post_url) is None:
         _ensure_posted_content_record(
@@ -1078,6 +1128,8 @@ async def engage_latest_posted_run(
     now = datetime.now(UTC)
     updated = run.model_copy(
         update={
+            "post_url": post_url,
+            "post_id": run.post_id or _extract_instagram_post_id(post_url),
             "engagement_summary": summary,
             "updated_at": now,
             "finished_at": now,

@@ -16,6 +16,7 @@ from hackathon_pipelines.contracts import (
     HackathonRunRecord,
     HackathonRunStatus,
     InstagramPostDraft,
+    PostedContentRecord,
     ReelSurfaceMetrics,
     VideoStructureRecord,
 )
@@ -195,6 +196,65 @@ async def test_generate_video_from_structure_db_creates_ready_run(tmp_path: Path
     assert generated_run.selected_template_id is not None
     assert generated_run.post_draft is not None
     assert "source=video_structure_db" in generated_run.notes
+
+
+@pytest.mark.asyncio
+async def test_engage_latest_posted_run_falls_back_to_latest_posted_content(tmp_path: Path) -> None:
+    db_path = tmp_path / "hackathon.sqlite3"
+    store = SQLiteHackathonStore(db_path)
+    now = datetime.now(UTC)
+    run = HackathonRunRecord(
+        run_id="run_context_only",
+        status=HackathonRunStatus.READY,
+        dry_run=False,
+        source_db_path=str(db_path),
+        product_title="Demo Product",
+        product_description="Stored run without linked post URL.",
+        post_draft=InstagramPostDraft(
+            caption="launch post",
+            product_name="Demo Product",
+            source_blueprint_id="tpl_demo",
+        ),
+        engagement_persona=CommentEngagementPersona(
+            persona_name="TechTok Sarah",
+            instagram_handle="@techtok.sarah",
+        ),
+        created_at=now,
+        updated_at=now,
+    )
+    store.save_run(run)
+    post = PostedContentRecord(
+        post_url="https://www.instagram.com/reel/LATEPOST123/",
+        job_id="post_demo",
+        caption="launch post",
+        product_name="Demo Product",
+        source_blueprint_id="tpl_demo",
+        posted_at=now,
+    )
+    store.persist_posted_content(post)
+
+    class FakeSocial:
+        async def engage_post_comments(self, post_url: str, *, persona, dry_run: bool, run_id: str | None = None):
+            assert post_url == post.post_url
+            assert dry_run is False
+            assert run_id == run.run_id
+            assert persona is not None
+            return CommentEngagementSummary(
+                status=CommentEngagementStatus.REPLIED,
+                total_replies_logged=1,
+                replies_posted_this_run=1,
+            )
+
+    updated_run, summary = await engage_latest_posted_run(
+        store=store,
+        social=FakeSocial(),
+        dry_run=False,
+    )
+
+    assert summary.status == CommentEngagementStatus.REPLIED
+    assert updated_run.post_url == post.post_url
+    assert updated_run.engagement_summary is not None
+    assert updated_run.engagement_summary.status == CommentEngagementStatus.REPLIED
 
 
 @pytest.mark.asyncio
