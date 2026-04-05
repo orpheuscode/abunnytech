@@ -14,7 +14,6 @@ dependencies = [
     "pipeline-stage1-discover",
     "pipeline-stage2-generate",
     "pipeline-api",
-    "pipeline-dashboard",
     # M2 workspace packages
     "browser-runtime",
     "abunny-evals",
@@ -24,7 +23,7 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
-    "streamlit>=1.41.0",
+    "flask>=3.0.0",
     "httpx>=0.28.0",
     "aiosqlite>=0.20.0",
     "sqlalchemy[asyncio]>=2.0.36",
@@ -50,7 +49,6 @@ members = [
     "packages/stage1_discover",
     "packages/stage2_generate",
     "apps/m1/api",
-    "apps/m1/dashboard",
     "packages/browser_runtime",
     "packages/evals",
     "packages/hackathon_pipelines",
@@ -66,7 +64,6 @@ pipeline-stage0-identity = { workspace = true }
 pipeline-stage1-discover = { workspace = true }
 pipeline-stage2-generate = { workspace = true }
 pipeline-api = { workspace = true }
-pipeline-dashboard = { workspace = true }
 abunny-stage1-discovery = { workspace = true }
 browser-runtime = { workspace = true }
 abunny-evals = { workspace = true }

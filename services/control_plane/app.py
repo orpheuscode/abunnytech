@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from packages.shared.config import get_settings
 from packages.shared.db import init_db
@@ -25,8 +28,12 @@ async def lifespan(app: FastAPI):
         stage5_enabled=settings.feature_stage5_monetize,
     )
     await init_db()
+    app.state.hackathon_loop_runner = None
     log.info("control_plane.db_initialized")
     yield
+    runner = getattr(app.state, "hackathon_loop_runner", None)
+    if runner is not None and runner.is_running:
+        await runner.stop()
     log.info("control_plane.shutdown")
 
 
@@ -73,18 +80,110 @@ async def root() -> dict[str, str]:
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
+    runner = getattr(app.state, "hackathon_loop_runner", None)
     return {
         "status": "healthy",
         "dry_run": is_dry_run(),
         "stage5_monetize": is_enabled("stage5_monetize"),
+        "hackathon_loop_running": bool(runner and runner.is_running),
     }
 
 
+class HackathonDemoRequest(BaseModel):
+    dry_run: bool | None = None
+    niche_query: str | None = None
+    caption: str | None = None
+    product_image_path: str | None = None
+    avatar_image_path: str | None = None
+    media_path: str | None = None
+    db_path: str | None = None
+
+
+class HackathonLoopRequest(BaseModel):
+    dry_run: bool | None = None
+    interval_seconds: float | None = Field(default=None, gt=0)
+    max_cycles: int | None = Field(default=None, ge=1)
+    niche_query: str | None = None
+    caption: str | None = None
+    workdir: str | None = None
+
+
+def _ensure_asset(path_str: str, *, dry_run: bool) -> str:
+    path = Path(path_str)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if dry_run and not path.exists():
+        path.write_bytes(b"")
+    if not dry_run and not path.exists():
+        msg = f"Required asset does not exist: {path}"
+        raise HTTPException(status_code=400, detail=msg)
+    return str(path)
+
+
+def _hackathon_defaults(payload: HackathonDemoRequest, *, dry_run: bool) -> dict[str, str]:
+    settings = get_settings()
+    return {
+        "product_image_path": _ensure_asset(
+            payload.product_image_path or settings.hackathon_product_image_path,
+            dry_run=dry_run,
+        ),
+        "avatar_image_path": _ensure_asset(
+            payload.avatar_image_path or settings.hackathon_avatar_image_path,
+            dry_run=dry_run,
+        ),
+        "media_path": _ensure_asset(
+            payload.media_path or settings.hackathon_media_path,
+            dry_run=dry_run,
+        ),
+    }
+
+
+def _build_hackathon_stack(*, dry_run: bool, db_path: str | None):
+    from hackathon_pipelines import build_runtime_stack
+
+    settings = get_settings()
+    try:
+        return build_runtime_stack(
+            dry_run=dry_run,
+            db_path=db_path or settings.hackathon_pipeline_db_path,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/pipeline/demo")
-async def run_demo_pipeline() -> dict[str, Any]:
+async def run_demo_pipeline(payload: HackathonDemoRequest | None = None) -> dict[str, Any]:
+    from hackathon_pipelines.contracts import ClosedLoopRunSummary
+
+    settings = get_settings()
+    request = payload or HackathonDemoRequest()
+    dry_run = settings.dry_run if request.dry_run is None else request.dry_run
+    assets = _hackathon_defaults(request, dry_run=dry_run)
+    stack = _build_hackathon_stack(dry_run=dry_run, db_path=request.db_path)
+    summary: ClosedLoopRunSummary = await stack.orchestrator.run_closed_loop_cycle(
+        product_image_path=assets["product_image_path"],
+        avatar_image_path=assets["avatar_image_path"],
+        niche_query=request.niche_query or settings.hackathon_niche_query,
+        caption=request.caption or settings.hackathon_default_caption,
+        media_path=assets["media_path"],
+        dry_run=dry_run,
+    )
+    return {
+        "demo_complete": True,
+        "pipeline": "hackathon_closed_loop",
+        "dry_run": dry_run,
+        "db_path": str(stack.store_path),
+        "product_image_path": assets["product_image_path"],
+        "avatar_image_path": assets["avatar_image_path"],
+        "media_path": summary.media_path,
+        "summary": summary.model_dump(mode="json"),
+    }
+
+
+@app.post("/pipeline/stage-demo")
+async def run_stage_demo_pipeline() -> dict[str, Any]:
     """Run a complete demo pipeline: identity -> discover -> generate -> distribute -> analyze.
 
-    This is the single-button hackathon demo endpoint.
+    Legacy stage-by-stage demo preserved for the existing stage stack.
     """
     from stages.stage0_identity.service import create_default_identity
     from stages.stage1_discover.service import get_discovery_service
@@ -171,3 +270,65 @@ async def run_demo_pipeline() -> dict[str, Any]:
     results["identity_id"] = identity_id
     log.info("demo.complete", identity_id=identity_id)
     return results
+
+
+@app.get("/pipeline/loop/status")
+async def hackathon_loop_status() -> dict[str, Any]:
+    runner = getattr(app.state, "hackathon_loop_runner", None)
+    if runner is None:
+        return {
+            "running": False,
+            "configured": False,
+            "cycle_count": 0,
+            "last_started_at": None,
+            "last_finished_at": None,
+            "next_run_at": None,
+            "last_error": None,
+            "last_cycle": None,
+        }
+    status = asdict(runner.status())
+    status["configured"] = True
+    return status
+
+
+@app.post("/pipeline/loop/start")
+async def start_hackathon_loop(payload: HackathonLoopRequest | None = None) -> dict[str, Any]:
+    from hackathon_pipelines import ContinuousLoopRunner, LoopRunnerConfig
+
+    settings = get_settings()
+    runner = getattr(app.state, "hackathon_loop_runner", None)
+    if runner is not None and runner.is_running:
+        raise HTTPException(status_code=409, detail="Hackathon loop is already running.")
+
+    request = payload or HackathonLoopRequest()
+    dry_run = settings.dry_run if request.dry_run is None else request.dry_run
+    stack = _build_hackathon_stack(dry_run=dry_run, db_path=None)
+    config = LoopRunnerConfig(
+        interval_seconds=request.interval_seconds or settings.hackathon_loop_interval_seconds,
+        max_cycles=request.max_cycles if request.max_cycles is not None else settings.hackathon_loop_max_cycles,
+        dry_run=dry_run,
+        niche_query=request.niche_query or settings.hackathon_niche_query,
+        caption=request.caption or settings.hackathon_default_caption,
+        workdir=Path(request.workdir or settings.hackathon_loop_workdir),
+    )
+    runner = ContinuousLoopRunner(
+        orchestrator=stack.orchestrator,
+        templates=stack.templates,
+        config=config,
+    )
+    app.state.hackathon_loop_runner = runner
+    runner.start()
+    status = asdict(runner.status())
+    status["db_path"] = str(stack.store_path)
+    return status
+
+
+@app.post("/pipeline/loop/stop")
+async def stop_hackathon_loop() -> dict[str, Any]:
+    runner = getattr(app.state, "hackathon_loop_runner", None)
+    if runner is None:
+        return {"running": False, "stopped": True}
+    await runner.stop()
+    status = asdict(runner.status())
+    status["stopped"] = True
+    return status

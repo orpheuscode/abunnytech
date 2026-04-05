@@ -3,7 +3,7 @@ Analytics dashboard adapter (Stage 4 — Analyze & Adapt).
 
 Aggregates performance metrics from multiple platforms into a single
 AnalyticsData record.  Also provides a cross-platform summary helper
-for the Streamlit dashboard.
+for the owner dashboard.
 
 This adapter does not post content or send messages — it is read-only.
 """
@@ -138,7 +138,7 @@ class AnalyticsAdapter(PlatformAdapter):
         since: datetime | None = None,
     ) -> dict[str, AnalyticsData]:
         """
-        Convenience method for the Streamlit dashboard.
+        Convenience method for the owner dashboard.
 
         Args:
             post_ids: {Platform.TIKTOK: "tt_post_id", Platform.INSTAGRAM: "ig_post_id"}

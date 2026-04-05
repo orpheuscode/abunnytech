@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ page_title or "abunnytech" }}{% endblock %} — Owner</title>
+  <style>
+    :root {
+      --bg: #0f0f1a;
+      --panel: #1a1a2e;
+      --border: #374151;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #a855f7;
+      --accent-dim: #6d28d9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+    }
+    a { color: #c084fc; text-decoration: none; }
+    a:hover { color: #e9d5ff; }
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: linear-gradient(180deg, #16132d 0%, #1e1b3a 100%);
+      border-right: 2px solid var(--accent-dim);
+      padding: 1rem 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .brand { text-align: center; margin-bottom: 0.5rem; }
+    .brand h1 { margin: 0; font-size: 1.35rem; }
+    .brand p { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--muted); }
+    .nav-section { margin-top: 0.75rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .nav a {
+      display: block;
+      padding: 0.45rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      color: var(--text);
+    }
+    .nav a:hover { background: #2d2b55; border-color: #4c1d95; }
+    .nav a.active { background: #7c3aed; border-color: #a78bfa; color: #fff; }
+    main { flex: 1; padding: 1.25rem 1.75rem; overflow: auto; }
+    .page-head {
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      margin-bottom: 1.25rem;
+      color: #fff;
+    }
+    .flash {
+      padding: 0.65rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      background: #1e1e36;
+      border: 1px solid var(--accent-dim);
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .prefs {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .prefs label { display: block; margin: 0.35rem 0; color: var(--muted); }
+    .prefs input[type="text"] {
+      width: 100%;
+      padding: 0.4rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--accent-dim);
+      background: #1e1e36;
+      color: var(--text);
+    }
+    .prefs button, .btn {
+      margin-top: 0.5rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      border: 2px solid #c084fc;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .prefs button:hover, .btn:hover { background: #9333ea; }
+    code { background: #1e1e36; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+    pre.json {
+      background: #1e1e36;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow: auto;
+      font-size: 0.8rem;
+    }
+    hr.sep { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+    .muted { color: var(--muted); font-size: 0.9rem; }
+    .footer-note { margin-top: auto; padding-top: 1rem; font-size: 0.7rem; color: var(--muted); text-align: center; }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>🐰 abunnytech</h1>
+      <p>Owner dashboard</p>
+    </div>
+    <div class="nav-section">Pipeline</div>
+    <nav class="nav">
+      {% for slug, label in nav_pages %}
+      <a href="{{ url_for('page', slug=slug) }}" class="{{ 'active' if active_slug == slug else '' }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="nav-section">Configuration</div>
+    <nav class="nav">
+      <a href="{{ url_for('settings') }}" class="{{ 'active' if active_slug == 'settings' else '' }}">API keys</a>
+    </nav>
+    <form class="prefs" method="post" action="{{ url_for('set_prefs') }}">
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <div class="nav-section">Data source</div>
+      <label><input type="radio" name="use_fixture" value="1" {{ 'checked' if use_fixture else '' }}> Fixture JSON (demo)</label>
+      <label><input type="radio" name="use_fixture" value="0" {{ '' if use_fixture else 'checked' }}> Local API</label>
+      <label>API base URL
+        <input type="text" name="api_base" value="{{ api_base }}" placeholder="http://localhost:8000">
+      </label>
+      <button type="submit">Apply</button>
+    </form>
+    <p class="footer-note">Keys saved on the API keys page are merged into <code>demo.py</code> child processes.</p>
+  </aside>
+  <main>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for m in messages %}
+        <div class="flash">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

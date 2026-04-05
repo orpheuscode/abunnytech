@@ -27,7 +27,6 @@
   "integration_artifacts": {
     "env_template": "integration/env.example",
     "instructions": "integration/PIPELINE_INSTRUCTIONS.md",
-    "debug_dashboard": "integration/debug_dashboard.py",
     "smoke_script": "integration/smoke_test_api.py",
     "example_persona_yaml": "integration/examples/persona.seed.yaml"
   },

@@ -3,7 +3,7 @@
 Starts:
   1. State CRUD API   (port 8000) — with demo seed data
   2. Control Plane    (port 8001) — stage routers + /pipeline/demo
-  3. Dashboard        (port 8501) — Streamlit UI
+  3. Dashboard        (port 8501) — Flask owner UI (API keys + pipeline views)
 
 Usage:
     uv run python scripts/demo.py
@@ -22,6 +22,8 @@ import sys
 import time
 from pathlib import Path
 
+from runtime_dashboard.secrets_store import read_for_subprocess
+
 REPO = Path(__file__).resolve().parent.parent
 
 
@@ -34,12 +36,15 @@ def _env() -> dict[str, str]:
     env.setdefault("SEED_ON_STARTUP", "true")
     env.setdefault("DRY_RUN", "true")
     env.setdefault("FEATURE_STAGE5_MONETIZE", "false")
+    for k, v in read_for_subprocess().items():
+        if v:
+            env[k] = v
     return env
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="abunnytech demo launcher")
-    parser.add_argument("--no-dashboard", action="store_true", help="Skip Streamlit dashboard")
+    parser.add_argument("--no-dashboard", action="store_true", help="Skip Flask owner dashboard")
     parser.add_argument("--seed-only", action="store_true", help="Seed DB and exit")
     parser.add_argument("--api-port", type=int, default=8000)
     parser.add_argument("--cp-port", type=int, default=8001)
@@ -107,13 +112,12 @@ def main() -> None:
         print(f"  Starting Dashboard on port {args.dash_port}...")
         dash_proc = subprocess.Popen(
             [
-                sys.executable, "-m", "streamlit", "run",
-                "runtime_dashboard/app.py",
-                "--server.port", str(args.dash_port),
-                "--server.headless", "true",
+                sys.executable,
+                "-m",
+                "runtime_dashboard.flask_owner_app",
             ],
             cwd=str(REPO),
-            env=env,
+            env={**env, "DASHBOARD_PORT": str(args.dash_port)},
         )
         procs.append(dash_proc)
 

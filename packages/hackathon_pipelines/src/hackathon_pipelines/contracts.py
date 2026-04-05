@@ -97,6 +97,7 @@ class GenerationBundle(BaseModel):
     veo_prompt: str
     product_image_path: str
     avatar_image_path: str
+    reference_image_paths: list[str] = Field(default_factory=list)
     prior_template_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -108,6 +109,8 @@ class GeneratedVideoArtifact(BaseModel):
     video_uri: str | None = None
     video_path: str | None = None
     model_id: str
+    reference_image_paths: list[str] = Field(default_factory=list)
+    provider_metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -145,4 +148,19 @@ class OrchestratorRunSummary(BaseModel):
     generations: int = 0
     posts: int = 0
     analytics_snapshots: int = 0
+    notes: list[str] = Field(default_factory=list)
+
+
+class ClosedLoopRunSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str
+    reel_summary: OrchestratorRunSummary
+    product_summary: OrchestratorRunSummary
+    publish_summary: OrchestratorRunSummary | None = None
+    template_id: str | None = None
+    product_id: str | None = None
+    bundle_id: str | None = None
+    artifact_id: str | None = None
+    media_path: str | None = None
     notes: list[str] = Field(default_factory=list)

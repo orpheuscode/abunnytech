@@ -1,0 +1,87 @@
+{% extends "owner/base.html" %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #2d3436, #636e72);">
+  <h1 style="margin:0;">Guided Pipeline Demo</h1>
+  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Step through each stage of the abunnytech AI creator pipeline.</p>
+</div>
+<p><strong>Step {{ step + 1 }} of {{ total }}</strong></p>
+<div style="background:#1a1a2e;border-radius:8px;height:8px;margin:0.5rem 0 1rem;overflow:hidden;">
+  <div style="height:100%;background:#a855f7;width:{{ ((step + 1) / total * 100)|round(1) }}%;"></div>
+</div>
+
+{% if step == 0 %}
+<div class="card">
+  <h2 style="margin-top:0;">The pipeline story</h2>
+  <p><strong>abunnytech</strong> is an autonomous AI-creator pipeline that takes a persona from concept to content to distribution to analytics — and loops back to improve.</p>
+  <h3>Architecture</h3>
+  {% for stage_num, name, color, desc in stages %}
+  <div style="display:flex;align-items:center;margin-bottom:0.5rem;">
+    <div style="background:{{ color }};color:#fff;padding:4px 12px;border-radius:8px;min-width:88px;text-align:center;font-weight:bold;margin-right:1rem;">{{ stage_num }}</div>
+    <div><strong>{{ name }}</strong> <span class="muted">{{ desc }}</span></div>
+  </div>
+  {% endfor %}
+  <p class="muted" style="margin-top:1rem;">The feedback loop from Stage 4 back to earlier stages is what makes the pipeline autonomous.</p>
+</div>
+{% elif step == 1 %}
+<div class="card">
+  <h2 style="margin-top:0;">Stage 0: Identity Matrix</h2>
+  <p class="muted">Every pipeline run starts with an identity matrix — the persona definition that feeds all downstream stages.</p>
+  <p><a href="{{ url_for('page', slug='identity') }}">Open full Identity view →</a></p>
+</div>
+{% elif step == 2 %}
+<div class="card">
+  <h2 style="margin-top:0;">Stage 1: Discovery</h2>
+  <p class="muted">Trending audio, competitor watchlists, and training manifests inform what to create next.</p>
+  <p><a href="{{ url_for('page', slug='discovery') }}">Open full Discovery view →</a></p>
+</div>
+{% elif step == 3 %}
+<div class="card">
+  <h2 style="margin-top:0;">Stage 2: Content</h2>
+  <p class="muted">Video blueprints and rendered content packages are produced from discovery + identity.</p>
+  <p><a href="{{ url_for('page', slug='content') }}">Open full Content view →</a></p>
+</div>
+{% elif step == 4 %}
+<div class="card">
+  <h2 style="margin-top:0;">Stage 3: Distribution</h2>
+  <p class="muted">Packages are queued for posting — dry-run or live — with engagement tracking.</p>
+  <p><a href="{{ url_for('page', slug='distribution') }}">Open full Distribution view →</a></p>
+</div>
+{% elif step == 5 %}
+<div class="card">
+  <h2 style="margin-top:0;">Stage 4: Analytics</h2>
+  <p class="muted">Metrics feed optimization directives and the redo queue for autonomous improvement.</p>
+  <p><a href="{{ url_for('page', slug='analytics') }}">Open full Analytics view →</a></p>
+</div>
+{% elif step == 6 %}
+<div class="card">
+  <h2 style="margin-top:0;">Stage 5: Monetization</h2>
+  <p class="muted">When enabled, product catalog and brand outreach extend the creator business.</p>
+  <p><a href="{{ url_for('page', slug='catalog') }}">Open full Monetization view →</a></p>
+</div>
+{% else %}
+<div class="card">
+  <h2 style="margin-top:0;">The full loop</h2>
+  <p class="muted">Optimization from Stage 4 creates redo items targeting earlier stages — the autonomous feedback loop.</p>
+  <h3>Timeline</h3>
+  <ul style="line-height:1.7;">
+    <li>🧬 <strong>Identity</strong> — Persona defined (voice, avatar, guidelines)</li>
+    <li>🔍 <strong>Trends</strong> — Trending audio and competitors analyzed</li>
+    <li>🎬 <strong>Content</strong> — Blueprints scripted, packages rendered</li>
+    <li>📦 <strong>Distribution</strong> — Dry-run and live posts tracked</li>
+    <li>📊 <strong>Analytics</strong> — Directives generated from performance</li>
+    <li>🔄 <strong>Feedback</strong> — Redo queue targets re-generation</li>
+  </ul>
+  <p style="color:#6ee7b7;margin-top:1rem;">Demo complete — the autonomous AI-creator pipeline is ready.</p>
+</div>
+{% endif %}
+
+<div style="display:flex;gap:1rem;align-items:center;margin-top:1rem;">
+  {% if step > 0 %}
+  <a class="btn" href="{{ url_for('guided', step=step - 1) }}">← Previous</a>
+  {% endif %}
+  <span class="muted">{{ step + 1 }} / {{ total }}</span>
+  {% if step < total - 1 %}
+  <a class="btn" href="{{ url_for('guided', step=step + 1) }}">Next →</a>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "owner/base.html" %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #fdcb6e, #f39c12);color:#1a1a2e;">
+  <h1 style="margin:0;">Stage 2: Content Generation</h1>
+</div>
+<h3>Video Blueprints</h3>
+{% if not blueprints %}
+<p class="muted">No video blueprints generated yet.</p>
+{% else %}
+{% for bp in blueprints %}
+{% set st = bp.get('status', 'draft') %}
+{% set sc = {'approved': '#00b894', 'draft': '#fdcb6e', 'rejected': '#d63031'}.get(st, '#636e72') %}
+<div class="card" style="border-left:4px solid {{ sc }};">
+  <strong>{{ bp.get('title', 'Untitled') }}</strong>
+  <span style="float:right;background:{{ sc }};color:#fff;padding:2px 10px;border-radius:12px;font-size:0.8rem;">{{ st }}</span>
+  <p class="muted" style="margin:0.35rem 0 0;">{{ bp.get('duration_seconds', 0) }}s · {{ bp.get('format', 'unknown') }}</p>
+  {% if bp.get('script') %}
+  <details style="margin-top:0.75rem;"><summary class="muted">Script</summary>
+    <pre class="json" style="white-space:pre-wrap;">{{ bp.get('script', '') }}</pre>
+  </details>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+<hr class="sep">
+<h3>Content Packages</h3>
+{% if not packages %}
+<p class="muted">No content packages assembled yet.</p>
+{% else %}
+{% for pkg in packages %}
+<div class="card">
+  <strong>{{ pkg.get('caption', '') }}</strong>
+  <p class="muted" style="margin:0.35rem 0 0;">
+    Platform <code>{{ pkg.get('platform', '?') }}</code> · Status <code>{{ pkg.get('status', 'pending') }}</code>
+    · Tags: {{ pkg.get('hashtags', [])|join(', ') if pkg.get('hashtags') else 'none' }}
+  </p>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

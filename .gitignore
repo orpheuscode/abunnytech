@@ -4,6 +4,7 @@ __pycache__/
 *.jsonl
 *.log
 .env
+runtime_dashboard/.owner_secrets.json
 .venv/
 venv/
 *.egg-info/

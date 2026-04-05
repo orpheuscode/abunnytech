@@ -1,13 +1,12 @@
 # Integration handoff — pipeline stages 0–2
 
-This folder collects **env templates**, a **debug dashboard**, a **smoke script**, and **manifest** data so another team can wire the same HTTP API and Python packages without spelunking the whole monorepo.
+This folder collects **env templates**, a **smoke script**, and **manifest** data so another team can wire the same HTTP API and Python packages without spelunking the whole monorepo.
 
 ## Contents
 
 | Path | Purpose |
 | --- | --- |
 | `env.example` | Copy to repo root as `.env` for FastAPI (`PIPELINE_*`); includes `PIPELINE_API_BASE` for clients. |
-| `debug_dashboard.py` | Streamlit UI: health, settings, run stages 0–2, per-key artifacts, request log, cURL snippets. |
 | `smoke_test_api.py` | One-shot HTTP check (stages 0–2 + artifacts). |
 | `manifest.json` | Machine-readable pointers to packages and routes. |
 | `examples/persona.seed.yaml` | Rich persona sample for `abunny-stage0` CLI (see main repo `agents/stage0_identity`). |
@@ -27,13 +26,7 @@ This folder collects **env templates**, a **debug dashboard**, a **smoke script*
    uv run python integration/smoke_test_api.py --base-url http://127.0.0.1:8000
    ```
 
-3. **Debug dashboard**:
-
-   ```bash
-   uv run --project stage-0-1-2/apps/dashboard streamlit run integration/debug_dashboard.py
-   ```
-
-   Ensure `PIPELINE_API_BASE` in `.env` matches the API (defaults to `http://127.0.0.1:8000`).
+3. For the full-stack owner UI (pipeline + API keys), run `uv run python scripts/demo.py` from the repo root and open `http://localhost:8501`.
 
 ## Contracts and stages
 

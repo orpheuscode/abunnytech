@@ -63,8 +63,8 @@ This build integrates 12 parallel development slices into a single hackathon-rea
 - Event bus and job registry
 - Seed fixture data for all stages
 
-**feat/m3t2-dashboard** — Streamlit Dashboard
-- `stage-0-5/apps/dashboard/` — pages for all 6 stages + demo control + guided demo
+**feat/m3t2-dashboard** — Owner dashboard (Flask)
+- `runtime_dashboard/` — pages for all 6 stages + demo control + guided demo
 - Pipeline visualization with stage-colored headers
 - Connects to State API for live data
 

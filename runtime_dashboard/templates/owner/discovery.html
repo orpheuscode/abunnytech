@@ -1,0 +1,35 @@
+{% extends "owner/base.html" %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #00b894, #55efc4);">
+  <h1 style="margin:0;">Stage 1: Discovery Queue</h1>
+</div>
+<h3>Trending Audio</h3>
+{% if not trending %}
+<p class="muted">No trending audio discovered yet.</p>
+{% else %}
+{% for item in trending %}
+<div class="card" style="display:flex;flex-wrap:wrap;gap:1rem;align-items:center;">
+  <div style="flex:1;min-width:200px;">
+    <strong>{{ item.get('title', 'Untitled') }}</strong> <span class="muted">by {{ item.get('artist', 'Unknown') }}</span>
+    <p class="muted" style="margin:0.25rem 0 0;">Platform <code>{{ item.get('platform', '?') }}</code> · ID <code>{{ item.get('audio_id', '') }}</code></p>
+  </div>
+  <div><span class="muted">Uses</span><br><strong>{{ item.get('usage_count', 0) or 0 }}</strong></div>
+  <div><span class="muted">Trend</span><br><strong>{{ "%.0f"|format((item.get('trend_score', 0) or 0) * 100) }}%</strong></div>
+</div>
+{% endfor %}
+{% endif %}
+<hr class="sep">
+<h3>Competitor Watchlist</h3>
+{% if not competitors %}
+<p class="muted">No competitors tracked yet.</p>
+{% else %}
+{% for item in competitors %}
+<div class="card">
+  <strong>{{ item.get('handle', '?') }}</strong> on <code>{{ item.get('platform', '?') }}</code>
+  · {{ item.get('follower_count', 0) or 0 }} followers
+  · {{ "%.1f"|format(item.get('avg_engagement', 0) or 0) }}% avg engagement
+  {% if item.get('notes') %}<p class="muted" style="margin:0.35rem 0 0;">{{ item.get('notes') }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

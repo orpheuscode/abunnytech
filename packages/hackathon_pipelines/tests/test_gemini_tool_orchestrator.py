@@ -1,0 +1,52 @@
+from __future__ import annotations
+
+import pytest
+
+from hackathon_pipelines import build_dry_run_stack, dispatch_pipeline_tool
+
+
+@pytest.mark.asyncio
+async def test_dispatch_reel_cycle() -> None:
+    stack = build_dry_run_stack()
+    out = await dispatch_pipeline_tool(stack.orchestrator, name="run_reel_to_template_cycle", args={})
+    assert out["ok"] is True
+    assert out["summary"]["templates_created"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_dispatch_product_to_video(tmp_path) -> None:
+    stack = build_dry_run_stack()
+    p = tmp_path / "p.png"
+    p.write_bytes(b"x")
+    a = tmp_path / "a.png"
+    a.write_bytes(b"y")
+    out = await dispatch_pipeline_tool(
+        stack.orchestrator,
+        name="run_product_to_video",
+        args={"product_image_path": str(p), "avatar_image_path": str(a), "niche_query": "gadgets"},
+    )
+    assert out["ok"] is True
+    assert out["summary"]["generations"] == 1
+
+
+@pytest.mark.asyncio
+async def test_dispatch_publish_requires_template(tmp_path) -> None:
+    stack = build_dry_run_stack()
+    await dispatch_pipeline_tool(stack.orchestrator, name="run_reel_to_template_cycle", args={})
+    tpl = stack.templates.list_templates()[0]
+    v = tmp_path / "v.mp4"
+    v.write_bytes(b"")
+    out = await dispatch_pipeline_tool(
+        stack.orchestrator,
+        name="run_publish_and_feedback",
+        args={"media_path": str(v), "caption": "hi", "template_id": tpl.template_id, "dry_run": True},
+    )
+    assert out["ok"] is True
+    assert out["summary"]["posts"] == 1
+
+
+@pytest.mark.asyncio
+async def test_dispatch_unknown_tool() -> None:
+    stack = build_dry_run_stack()
+    out = await dispatch_pipeline_tool(stack.orchestrator, name="nope", args={})
+    assert out["ok"] is False

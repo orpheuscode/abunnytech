@@ -1,0 +1,24 @@
+{% extends "owner/base.html" %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #0984e3, #74b9ff);">
+  <h1 style="margin:0;">Stage 3: Distribution</h1>
+</div>
+<h3>Distribution Records</h3>
+{% if not records %}
+<p class="muted">No distribution records yet. Run the pipeline to post content.</p>
+{% else %}
+{% for rec in records %}
+{% set st = rec.get('status', 'pending') %}
+{% set meta = {'posted': ('✅', '#00b894'), 'pending': ('⏳', '#fdcb6e'), 'failed': ('❌', '#d63031')}.get(st, ('?', '#636e72')) %}
+<div class="card" style="border-left:4px solid {{ meta[1] }};">
+  {{ meta[0] }} <strong>{{ (rec.get('platform') or '?')|upper }}</strong> — {{ st }}
+  {% if rec.get('dry_run') %}<code>DRY RUN</code>{% endif %}
+  <p class="muted" style="margin:0.35rem 0 0;">
+    {% if rec.get('posted_at') %}Posted: {{ rec.get('posted_at') }}{% else %}Not yet posted{% endif %}
+  </p>
+  {% if rec.get('post_url') %}<p class="muted" style="margin:0.25rem 0 0;">URL: <code>{{ rec.get('post_url') }}</code></p>{% endif %}
+  {% if rec.get('error_message') %}<p style="color:#f87171;margin:0.5rem 0 0;">{{ rec.get('error_message') }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -18,6 +18,7 @@ from hackathon_pipelines.ports import (
     ReelMetadataSinkPort,
     TemplateStorePort,
 )
+from hackathon_pipelines.scoring import rank_products
 
 
 class MemoryReelSink(ReelMetadataSinkPort):
@@ -59,8 +60,7 @@ class MemoryProductCatalog(ProductCatalogPort):
             self._by_id[c.product_id] = c
 
     def top_by_score(self, *, limit: int = 5) -> list[ProductCandidate]:
-        ranked = sorted(self._by_id.values(), key=lambda p: p.dropship_score, reverse=True)
-        return ranked[:limit]
+        return rank_products(self._by_id.values(), limit=limit)
 
 
 class MemoryAnalyticsSink(AnalyticsSinkPort):

@@ -1,0 +1,37 @@
+{% extends "owner/base.html" %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #e17055, #fab1a0);">
+  <h1 style="margin:0;">Stage 4: Analytics &amp; Directives</h1>
+</div>
+<h3>Optimization Directives</h3>
+{% if not directives %}
+<p class="muted">No optimization directives generated yet.</p>
+{% else %}
+{% for env in directives %}
+<div class="card">
+  {% if env.get('summary') %}<p><strong>{{ env.get('summary') }}</strong></p>{% endif %}
+  {% set c = env.get('confidence', 0) or 0 %}
+  {% if c %}<p class="muted">Confidence: {{ "%.0f"|format(c * 100) }}%</p>{% endif %}
+  {% if env.get('directives') %}
+  <ul>{% for d in env.get('directives', []) %}
+    <li><strong>{{ (d.get('type', 'unknown')).replace('_', ' ')|title }}</strong>{% if d.get('priority') %} (priority: {{ d.get('priority') }}){% endif %}</li>
+  {% endfor %}</ul>
+  {% else %}<p class="muted">No individual directives in this envelope.</p>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+<hr class="sep">
+<h3>Redo Queue</h3>
+{% if not redo %}
+<p style="color:#6ee7b7;">Redo queue is empty — all content passed quality checks.</p>
+{% else %}
+{% for item in redo %}
+<div class="card">
+  {% set pr = item.get('priority', 0) or 0 %}
+  <span>{{ '🔴' if pr >= 1 else '🟡' }}</span>
+  <strong>{{ item.get('reason', 'No reason') }}</strong> — Target stage {{ item.get('target_stage', '?') }},
+  priority {{ pr }}, status <code>{{ item.get('status', 'pending') }}</code>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

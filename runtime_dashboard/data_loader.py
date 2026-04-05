@@ -63,3 +63,15 @@ def load_redo_queue(api_base: str | None) -> list[dict[str, Any]]:
     if api_base is None:
         return _load_fixture("redo_queue")
     return _fetch_api(api_base, "/redo_queue")
+
+
+def load_competitor_watchlist(api_base: str | None) -> list[dict[str, Any]]:
+    if api_base is None:
+        return _load_fixture("competitor_watchlist")
+    return _fetch_api(api_base, "/competitor_watchlist")
+
+
+def load_product_catalog(api_base: str | None) -> list[dict[str, Any]]:
+    if api_base is None:
+        return _load_fixture("product_catalog")
+    return _fetch_api(api_base, "/product_catalog")

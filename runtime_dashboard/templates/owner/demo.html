@@ -1,0 +1,68 @@
+{% extends "owner/base.html" %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #2d3436, #636e72);">
+  <h1 style="margin:0;">Demo Control Surface</h1>
+  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Operator tools for demos and artifact inspection.</p>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
+  <div class="card">
+    <h3 style="margin-top:0;">Dry-run demo</h3>
+    <p class="muted">Simulate a full pipeline pass without posting to real platforms.</p>
+    <form method="post" action="{{ url_for('demo_dry_run') }}"><button type="submit" class="btn">Run dry-run demo</button></form>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;">Pipeline status</h3>
+    <ul style="margin:0;padding-left:1.2rem;">
+      {% for label, count in health %}
+      <li>{% if count > 0 %}✅{% else %}⚠️{% endif %} <strong>{{ label }}:</strong> {{ count }} record(s)</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+<hr class="sep">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;">
+  <div class="card">
+    <h3 style="margin-top:0;">Inspect artifacts</h3>
+    <form method="get" action="{{ url_for('page', slug='demo') }}">
+      <label class="muted">Type</label>
+      <select name="artifact" style="width:100%;margin:0.25rem 0 0.75rem;padding:0.45rem;border-radius:6px;background:#1e1e36;color:#e2e8f0;border:1px solid #6d28d9;">
+        {% for k, lab in artifact_types %}
+        <option value="{{ k }}" {{ 'selected' if artifact == k else '' }}>{{ lab }}</option>
+        {% endfor %}
+      </select>
+      {% if artifact_records|length > 1 %}
+      <label class="muted">Record</label>
+      <select name="idx" style="width:100%;margin:0.25rem 0 0.75rem;padding:0.45rem;border-radius:6px;background:#1e1e36;color:#e2e8f0;border:1px solid #6d28d9;">
+        {% for i, lab in artifact_labels %}
+        <option value="{{ i }}" {{ 'selected' if idx == i else '' }}>{{ lab }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <button type="submit" class="btn">Load</button>
+    </form>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;">Latest directive / redo</h3>
+    {% if latest_directive %}
+    <p><strong>Summary:</strong> {{ latest_directive.get('summary', 'n/a')[:200] }}{% if latest_directive.get('summary', '')|length > 200 %}…{% endif %}</p>
+    <p class="muted">Confidence: {{ "%.0f"|format((latest_directive.get('confidence', 0) or 0) * 100) }}%</p>
+    <p class="muted">Actions: {{ (latest_directive.get('directives') or [])|length }}</p>
+    {% else %}
+    <p class="muted">No directives yet.</p>
+    {% endif %}
+    <hr class="sep">
+    {% if redo_pending %}
+    <p><strong>Redo queue:</strong> {{ redo_pending|length }} pending</p>
+    <ul>{% for item in redo_pending[:8] %}
+      <li class="muted">{{ item.get('reason', '')|replace('_', ' ')|title }} → Stage {{ item.get('target_stage', '?') }}, P{{ item.get('priority', '?') }}</li>
+    {% endfor %}</ul>
+    {% else %}
+    <p style="color:#6ee7b7;">Redo queue is empty.</p>
+    {% endif %}
+  </div>
+</div>
+{% if selected_json %}
+<h3>Selected artifact (JSON)</h3>
+<pre class="json">{{ selected_json }}</pre>
+{% endif %}
+{% endblock %}

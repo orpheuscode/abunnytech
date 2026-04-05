@@ -1,0 +1,20 @@
+{% extends "owner/base.html" %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #a29bfe, #6c5ce7);">
+  <h1 style="margin:0;">Stage 5: Monetization</h1>
+</div>
+<p class="muted">Stage 5 is <strong>feature-flagged</strong>. Enable <code>FEATURE_STAGE5_MONETIZE=true</code> to activate in production.</p>
+<h3>Product Catalog</h3>
+{% if not products %}
+<p class="muted">No products in the catalog yet.</p>
+{% else %}
+{% for prod in products %}
+<div class="card" style="border-left:4px solid #a29bfe;">
+  <strong>{{ prod.get('name', 'Unnamed Product') }}</strong> — ${{ "%.2f"|format((prod.get('price_cents', 0) or 0) / 100) }}
+  <span style="float:right;">{% if prod.get('active') %}✅ Active{% else %}⛔ Inactive{% endif %}</span>
+  <p class="muted" style="margin:0.35rem 0 0;">{{ prod.get('description', '') }}</p>
+  {% if prod.get('url') %}<p class="muted" style="margin:0.25rem 0 0;">{{ prod.get('url') }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

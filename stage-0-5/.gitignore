@@ -24,7 +24,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 node_modules/
-.streamlit/secrets.toml
 audit_logs/
 output/
 tmp/

@@ -1,0 +1,39 @@
+{% extends "owner/base.html" %}
+{% block title %}API keys{% endblock %}
+{% block content %}
+<div class="page-head" style="background: linear-gradient(135deg, #2d3436, #636e72);">
+  <h1 style="margin:0;">API keys</h1>
+  <p class="muted" style="margin:0.5rem 0 0;color:#e2e8f0;">Stored locally in <code>runtime_dashboard/.owner_secrets.json</code> (gitignored). Applied to API and control-plane processes when you run <code>scripts/demo.py</code>.</p>
+</div>
+
+<div class="card">
+  <p class="muted">Browser Use (OpenAI) — used when the agent runs with OpenAI models or <code>BROWSER_USE_LLM=openai</code>. Gemini-backed Browser Use uses the Gemini key below.</p>
+  <p class="muted">Gemini / Google — sets <code>GOOGLE_API_KEY</code> and <code>GEMINI_API_KEY</code>.</p>
+  <p class="muted">Twelve Labs — sets <code>TWELVE_LABS_API_KEY</code> and <code>TWELVELABS_API_KEY</code>.</p>
+</div>
+
+<div class="card" style="max-width: 520px;">
+  <p class="muted" style="margin-top:0;">Leave a field empty to keep the current saved value.</p>
+  <ul class="muted" style="margin:0 0 1rem;padding-left:1.2rem;">
+    <li>{% if saved_openai %}<strong>Saved</strong>{% else %}Not set{% endif %} — OpenAI (<code>OPENAI_API_KEY</code>)</li>
+    <li>{% if saved_gemini %}<strong>Saved</strong>{% else %}Not set{% endif %} — Gemini / Google (<code>GOOGLE_API_KEY</code>, <code>GEMINI_API_KEY</code>)</li>
+    <li>{% if saved_twelve %}<strong>Saved</strong>{% else %}Not set{% endif %} — Twelve Labs (<code>TWELVE_LABS_API_KEY</code>)</li>
+  </ul>
+</div>
+
+<form method="post" action="{{ url_for('settings') }}" class="card" style="max-width: 520px;">
+  <label class="muted">Browser Use (OpenAI API key)</label>
+  <input type="password" name="browser_use_openai" value="" autocomplete="new-password" placeholder="New key…"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+
+  <label class="muted">Gemini / Google API key</label>
+  <input type="password" name="gemini" value="" autocomplete="new-password" placeholder="New key…"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+
+  <label class="muted">Twelve Labs API key</label>
+  <input type="password" name="twelvelabs" value="" autocomplete="new-password" placeholder="New key…"
+    style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #6d28d9;background:#1e1e36;color:#e2e8f0;margin:0.25rem 0 1rem;">
+
+  <button type="submit" class="btn">Save keys</button>
+</form>
+{% endblock %}

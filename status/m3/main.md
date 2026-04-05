@@ -11,7 +11,7 @@
 - [x] Stage 5: Monetize (feature-flagged, products, outreach, DMs)
 - [x] FastAPI control plane with all stage routers
 - [x] One-click demo pipeline endpoint (/pipeline/demo)
-- [x] Streamlit dashboard with all stage UIs
+- [x] Flask owner dashboard with all stage UIs
 - [x] Test suite (contracts, all stages, control plane)
 
 ## Open Risks

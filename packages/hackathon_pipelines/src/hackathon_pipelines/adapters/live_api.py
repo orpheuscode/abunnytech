@@ -174,6 +174,7 @@ class GeminiTemplateAgent(GeminiVideoAgentPort):
                 veo_prompt=template.veo_prompt_draft,
                 product_image_path=product_image_path,
                 avatar_image_path=avatar_image_path,
+                reference_image_paths=[product_image_path, avatar_image_path],
                 prior_template_metadata={"disposition": template.disposition.value},
             )
 
@@ -202,6 +203,7 @@ class GeminiTemplateAgent(GeminiVideoAgentPort):
             veo_prompt=veo_prompt,
             product_image_path=product_image_path,
             avatar_image_path=avatar_image_path,
+            reference_image_paths=[product_image_path, avatar_image_path],
             prior_template_metadata={"gemini_notes": data.get("notes")},
         )
 
@@ -227,6 +229,8 @@ class VeoVideoGenerator(VeoGeneratorPort):
                 video_uri=None,
                 video_path=None,
                 model_id=self._model,
+                reference_image_paths=list(bundle.reference_image_paths),
+                provider_metadata={"mode": "dry_run", "pending_team_snippet": "multi_reference_veo"},
             )
 
         import asyncio
@@ -250,4 +254,9 @@ class VeoVideoGenerator(VeoGeneratorPort):
             video_uri=uri,
             video_path=None,
             model_id=self._model,
+            reference_image_paths=list(bundle.reference_image_paths),
+            provider_metadata={
+                "reference_image_paths": list(bundle.reference_image_paths),
+                "live_reference_mode": "single_image_until_team_snippet_lands",
+            },
         )

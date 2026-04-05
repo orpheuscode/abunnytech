@@ -17,8 +17,9 @@ cp .env.example .env
 # Run the control plane
 python -m services.control_plane
 
-# In another terminal, run the dashboard
-streamlit run services/dashboard/app.py
+# In another terminal, run the owner dashboard (from monorepo root)
+# uv run python -m runtime_dashboard.flask_owner_app
+# Or: uv run python scripts/demo.py
 
 # Or hit the one-click demo endpoint
 curl -X POST http://localhost:8000/pipeline/demo | python -m json.tool
@@ -69,7 +70,7 @@ abunnytech/
 │   └── stage5_monetize/ # Monetization (feature-flagged)
 ├── services/
 │   ├── control_plane/   # FastAPI orchestrator
-│   └── dashboard/       # Streamlit demo UI
+│   └── dashboard/       # (removed — use runtime_dashboard/ Flask app at repo root)
 ├── tests/               # pytest suite
 ├── status/              # Build status tracking
 └── docs/                # Architecture & handoff docs

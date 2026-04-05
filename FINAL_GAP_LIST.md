@@ -69,7 +69,7 @@ These items are documented for post-hackathon work. None block the demo.
 | Area | Gap |
 |------|-----|
 | Stage-3-4 agents | Tests exist but not in the root pytest path (run separately with `cd stage-3-4`) |
-| Dashboard rendering | No automated Streamlit tests (manual verification only) |
+| Dashboard rendering | No automated UI tests for the Flask owner dashboard (manual verification only) |
 | Control plane `/pipeline/demo` | Tested in `test_control_plane.py` but end-to-end only via smoke test |
 | Cross-stage integration | No test runs the full pipeline through real stage services (only mock/in-memory) |
 
