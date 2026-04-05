@@ -30,6 +30,10 @@ data/*.sqlite3
 output/hackathon_prompt_artifacts/
 output/hackathon_thumbnails/
 output/hackathon_upload_ready/
+!output/hackathon_upload_ready/
+!output/hackathon_upload_ready/vid_5ff7a610742f.instagram.mp4
 output/hackathon_videos/
+!output/hackathon_videos/
+!output/hackathon_videos/vid_5ff7a610742f.mp4
 output/stage5_drafts/
 runtime_dashboard/static/uploads/
