@@ -6,6 +6,8 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
 
 from browser_runtime.providers.base import BrowserProvider
 from browser_runtime.providers.browser_use import BrowserUseBrowserConfig, BrowserUseProvider
@@ -147,17 +149,24 @@ def _build_live_browser_provider(
     extra_kwargs: dict[str, object] = {}
     use_cdp = bool(runtime_env.get(ENV_BROWSER_USE_CDP_URL))
     use_cloud = str(runtime_env.get(ENV_BROWSER_USE_USE_CLOUD, "false")).lower() == "true"
+    has_local_chrome_profile = bool(
+        runtime_env.get(ENV_CHROME_EXECUTABLE_PATH)
+        and runtime_env.get(ENV_CHROME_USER_DATA_DIR)
+        and runtime_env.get(ENV_CHROME_PROFILE_DIRECTORY)
+    )
+    if use_cdp and not use_cloud and has_local_chrome_profile:
+        cdp_url = str(runtime_env.get(ENV_BROWSER_USE_CDP_URL) or "").strip()
+        if cdp_url and not _cdp_url_is_reachable(cdp_url):
+            use_cdp = False
     if (
         not use_cdp
         and not use_cloud
-        and runtime_env.get(ENV_CHROME_EXECUTABLE_PATH)
-        and runtime_env.get(ENV_CHROME_USER_DATA_DIR)
-        and runtime_env.get(ENV_CHROME_PROFILE_DIRECTORY)
+        and has_local_chrome_profile
     ):
         # Local copied Chrome profiles are more stable for Instagram posting without Browser Use's extra extensions.
         extra_kwargs["enable_default_extensions"] = False
     browser_config = BrowserUseBrowserConfig(
-        cdp_url=runtime_env.get(ENV_BROWSER_USE_CDP_URL) or None,
+        cdp_url=(runtime_env.get(ENV_BROWSER_USE_CDP_URL) or None) if use_cdp else None,
         use_cloud=use_cloud or None,
         headless=(runtime_env.get(ENV_BROWSER_USE_HEADLESS, "false").lower() == "true"),
         executable_path=None if use_cdp or use_cloud else runtime_env.get(ENV_CHROME_EXECUTABLE_PATH) or None,
@@ -181,6 +190,15 @@ def _build_live_browser_provider(
         dry_run=False,
         browser_config=browser_config,
     )
+
+
+def _cdp_url_is_reachable(cdp_url: str, *, timeout_seconds: float = 1.5) -> bool:
+    version_url = cdp_url.rstrip("/") + "/json/version"
+    try:
+        with urlopen(version_url, timeout=timeout_seconds) as response:
+            return 200 <= int(getattr(response, "status", 200)) < 300
+    except (OSError, URLError, ValueError):
+        return False
 
 
 def build_dry_run_stack() -> DryRunStack:

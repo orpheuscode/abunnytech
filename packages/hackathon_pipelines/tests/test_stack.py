@@ -463,6 +463,7 @@ def test_build_runtime_stack_constructs_live_browser_use_provider_from_env(tmp_p
             captured["browser_kwargs"] = browser_config.to_browser_kwargs()
 
     monkeypatch.setattr(hackathon_module, "BrowserUseProvider", FakeProvider)
+    monkeypatch.setattr(hackathon_module, "_cdp_url_is_reachable", lambda url: True)
     monkeypatch.setenv("BROWSER_USE_CDP_URL", "http://127.0.0.1:9666")
     monkeypatch.setenv("DRY_RUN", "false")
     get_settings.cache_clear()
@@ -562,6 +563,7 @@ def test_build_runtime_stack_prefers_request_browser_runtime_env_override(tmp_pa
             captured["browser_kwargs"] = browser_config.to_browser_kwargs()
 
     monkeypatch.setattr(hackathon_module, "BrowserUseProvider", FakeProvider)
+    monkeypatch.setattr(hackathon_module, "_cdp_url_is_reachable", lambda url: True)
     monkeypatch.setenv("BROWSER_USE_CDP_URL", "http://127.0.0.1:9553")
     monkeypatch.setenv("DRY_RUN", "false")
     get_settings.cache_clear()
@@ -591,6 +593,7 @@ def test_build_runtime_stack_ignores_chrome_fields_when_cdp_is_present(tmp_path,
             captured["browser_kwargs"] = browser_config.to_browser_kwargs()
 
     monkeypatch.setattr(hackathon_module, "BrowserUseProvider", FakeProvider)
+    monkeypatch.setattr(hackathon_module, "_cdp_url_is_reachable", lambda url: True)
     monkeypatch.setenv("BROWSER_USE_CDP_URL", "http://127.0.0.1:9222")
     monkeypatch.setenv("CHROME_EXECUTABLE_PATH", "/usr/bin/google-chrome")
     monkeypatch.setenv("CHROME_USER_DATA_DIR", "/home/kevin/.config/google-chrome")
@@ -604,5 +607,34 @@ def test_build_runtime_stack_ignores_chrome_fields_when_cdp_is_present(tmp_path,
         "cdp_url": "http://127.0.0.1:9222",
         "headless": False,
         "keep_alive": True,
+    }
+    get_settings.cache_clear()
+
+
+def test_build_runtime_stack_falls_back_to_local_chrome_when_cdp_is_stale(tmp_path, monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeProvider:
+        def __init__(self, llm_model: str, dry_run: bool, *, browser_config) -> None:
+            captured["browser_kwargs"] = browser_config.to_browser_kwargs()
+
+    monkeypatch.setattr(hackathon_module, "BrowserUseProvider", FakeProvider)
+    monkeypatch.setattr(hackathon_module, "_cdp_url_is_reachable", lambda url: False)
+    monkeypatch.setenv("BROWSER_USE_CDP_URL", "http://127.0.0.1:9222")
+    monkeypatch.setenv("CHROME_EXECUTABLE_PATH", "/usr/bin/google-chrome")
+    monkeypatch.setenv("CHROME_USER_DATA_DIR", "/home/kevin/.config/google-chrome")
+    monkeypatch.setenv("CHROME_PROFILE_DIRECTORY", "Profile 3")
+    monkeypatch.setenv("DRY_RUN", "false")
+    get_settings.cache_clear()
+
+    build_runtime_stack(dry_run=False, db_path=tmp_path / "stale.sqlite3")
+
+    assert captured["browser_kwargs"] == {
+        "executable_path": "/usr/bin/google-chrome",
+        "user_data_dir": "/home/kevin/.config/google-chrome",
+        "profile_directory": "Profile 3",
+        "headless": False,
+        "keep_alive": True,
+        "enable_default_extensions": False,
     }
     get_settings.cache_clear()
