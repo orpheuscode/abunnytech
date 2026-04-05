@@ -26,6 +26,7 @@ data/tmp_reels_instaloader/
 data/test mp4/
 data/chrome*/
 data/*.sqlite3
+!data/hackathon_pipelines.sqlite3
 output/hackathon_prompt_artifacts/
 output/hackathon_thumbnails/
 output/hackathon_upload_ready/
